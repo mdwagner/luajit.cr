@@ -1,3 +1,2 @@
-module Luajit
-  VERSION = "0.1.0"
-end
+require "./luajit/version"
+require "./luajit/*"
