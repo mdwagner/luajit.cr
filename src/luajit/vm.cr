@@ -104,34 +104,69 @@ module Luajit
       to_userdata?.not_nil!
     end
 
-    def <<(b : Bool) : Nil
+    def <<(b : Bool) : self
       LibLuajit.lua_pushboolean(@state, b)
+      self
     end
 
-    def <<(n : Int64) : Nil
+    def <<(n : Int64) : self
       LibLuajit.lua_pushinteger(@state, n)
+      self
     end
 
-    def <<(ptr : Void*) : Nil
+    def <<(ptr : Void*) : self
       LibLuajit.lua_pushlightuserdata(@state, n)
+      self
     end
 
-    def <<(_x : Nil) : Nil
+    def <<(_x : Nil) : self
       LibLuajit.lua_pushnil(@state)
+      self
     end
 
-    def <<(n : Float64) : Nil
+    def <<(n : Float64) : self
       LibLuajit.lua_pushnumber(@state, n)
+      self
     end
 
-    def <<(str : String) : Nil
+    def <<(str : String) : self
       LibLuajit.lua_pushstring(@state, str)
+      self
     end
 
-    def <<(thread : LuaThread) : Nil
+    def <<(chr : Char) : self
+      self << chr.to_s
+      self
+    end
+
+    def <<(sym : Symbol) : self
+      self << sym.to_s
+      self
+    end
+
+    def <<(thread : LuaThread) : self
       if LibLuajit.lua_pushthread(thread.state) == 1
         raise "LuaThread should not be main thread"
       end
+      self
+    end
+
+    def <<(arr : Array) : self
+      LibLuajit.createtable(@state, arr.size, 0)
+      arr.each_with_index do |item, index|
+        self << index << item
+        LibLuajit.settable(@state, -3)
+      end
+      self
+    end
+
+    def <<(hash : Hash) : self
+      LibLuajit.createtable(@state, 0, hash.size)
+      hash.each do |key, value|
+        self << key << value
+        LibLuajit.settable(@state, -3)
+      end
+      self
     end
 
     def push_existing(index : Int32) : Nil
