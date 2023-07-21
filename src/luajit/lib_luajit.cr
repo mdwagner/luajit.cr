@@ -38,7 +38,11 @@ module Luajit
     LUA_MASKRET        = 1 << LUA_HOOKRET
     LUA_MASKLINE       = 1 << LUA_HOOKLINE
     LUA_MASKCOUNT      = 1 << LUA_HOOKCOUNT
-    LUA_IDSIZE         = 60
+    LUA_IDSIZE         =     60
+    LUAJIT_MODE_MASK   = 0x00ff
+    LUAJIT_MODE_OFF    = 0x0000
+    LUAJIT_MODE_ON     = 0x0100
+    LUAJIT_MODE_FLUSH  = 0x0200
 
     alias Int = LibC::Int
     alias SizeT = LibC::SizeT
@@ -52,6 +56,7 @@ module Luajit
       name, namewhat, what, source : Char*
       currentline, nups, linedefined, lastlinedefined : Int
       short_src : Char[LUA_IDSIZE]
+      i_ci : Int # private
     end
 
     alias State = Void
@@ -63,10 +68,22 @@ module Luajit
     alias Integer = Long
     alias Hook = State*, Debug* -> Void
     alias Buffer = Void
+    alias ProfileCallback = Void*, State*, Int, Int -> Void
 
     struct Reg
       name : Char*
       func : CFunction
+    end
+
+    enum LuajitMode
+      Engine
+      Debug
+      Func
+      AllFunc
+      AllSubFunc
+      Trace
+      WrapFunc   = 0x10
+      Max
     end
 
     fun lua_atpanic(l : State*, panicf : CFunction) : CFunction
@@ -200,7 +217,7 @@ module Luajit
     fun luaL_prepbuffer(b : Buffer*) : Char*
     fun luaL_pushresult(b : Buffer*) : Void
     fun luaL_ref(l : State*, t : Int) : Int
-    fun luaL_register(l : State*, libname : Char*, list : Reg*) : Void
+    fun luaL_register(l : State*, libname : Char*, lr : Reg*) : Void
     fun luaL_typename(l : State*, index : Int) : Char*
     fun luaL_typerror(l : State*, narg : Int, tname : Char*) : Int
     fun luaL_unref(l : State*, t : Int, ref : Int) : Void
@@ -216,160 +233,34 @@ module Luajit
     fun luaopen_package(l : State*) : Int
 
     fun luaJIT_version_2_1_0_beta3 : Void
+    fun luaJIT_profile_dumpstack(l : State*, fmt : Char*, depth : Int, len : SizeT*) : Char*
+    fun luaJIT_profile_start(l : State*, mode : Char*, cb : ProfileCallback, data : Void*) : Void
+    fun luaJIT_profile_stop(l : State*) : Void
+    fun luaJIT_setmode(l : State*, idx : Int, mode : Int) : Int
+
+    fun lua_upvalueid(l : State*, idx : Int, n : Int) : Void*
+    fun lua_upvaluejoin(l : State*, idx1 : Int, n1 : Int, idx2 : Int, n2 : Int) : Void
+    fun lua_loadx(l : State*, reader : Reader, dt : Void*, chunkname : Char*, mode : Char*) : Int
+    fun lua_version(l : State*) : Number*
+    fun lua_copy(l : State*, fromidx : Int, toidx : Int) : Void
+    fun lua_tonumberx(l : State*, idx : Int, isnum : Int*) : Number
+    fun lua_tointegerx(l : State*, idx : Int, isnum : Int*) : Integer
+    fun lua_isyieldable(l : State*) : Int
+
+    fun luaL_fileresult(l : State*, stat : Int, fname : Char*) : Int
+    fun luaL_execresult(l : State*, stat : Int) : Int
+    fun luaL_loadfilex(l : State*, filename : Char*, mode : Char*) : Int
+    fun luaL_loadbufferx(l : State*, buff : Char*, sz : SizeT, name : Char*, mode : Char*) : Int
+    fun luaL_traceback(l : State*, l1 : State*, msg : Char*, level : Int) : Void
+    fun luaL_setfuncs(l : State*, lr : Reg*, nup : Int) : Void
+    fun luaL_pushmodule(l : State*, modname : Char*, sizehint : Int) : Void
+    fun luaL_testudata(l : State*, ud : Int, tname : Char*) : Void*
+    fun luaL_setmetatable(l : State*, tname : Char*) : Void
+    fun luaL_findtable(l : State*, idx : Int, fname : Char*, szhint : Int) : Char*
+    fun luaL_openlib(l : State*, libname : Char*, lr : Reg*, nup : Int) : Void
+
+    fun luaopen_bit(l : State*) : Int
+    fun luaopen_ffi(l : State*) : Int
+    fun luaopen_jit(l : State*) : Int
   end
 end
-
-## libluajit-5.1 exported functions ##
-#luaJIT_profile_dumpstack
-#luaJIT_profile_start
-#luaJIT_profile_stop
-#luaJIT_setmode
-#luaJIT_version_2_1_0_beta3
-#luaL_addlstring
-#luaL_addstring
-#luaL_addvalue
-#luaL_argerror
-#luaL_buffinit
-#luaL_callmeta
-#luaL_checkany
-#luaL_checkinteger
-#luaL_checklstring
-#luaL_checknumber
-#luaL_checkoption
-#luaL_checkstack
-#luaL_checktype
-#luaL_checkudata
-#luaL_error
-#luaL_execresult
-#luaL_fileresult
-#luaL_findtable
-#luaL_getmetafield
-#luaL_gsub
-#luaL_loadbuffer
-#luaL_loadbufferx
-#luaL_loadfile
-#luaL_loadfilex
-#luaL_loadstring
-#luaL_newmetatable
-#luaL_newstate
-#luaL_openlib
-#luaL_openlibs
-#luaL_optinteger
-#luaL_optlstring
-#luaL_optnumber
-#luaL_prepbuffer
-#luaL_pushmodule
-#luaL_pushresult
-#luaL_ref
-#luaL_register
-#luaL_setfuncs
-#luaL_setmetatable
-#luaL_testudata
-#luaL_traceback
-#luaL_typerror
-#luaL_unref
-#luaL_where
-#lua_atpanic
-#lua_call
-#lua_checkstack
-#lua_close
-#lua_concat
-#lua_copy
-#lua_cpcall
-#lua_createtable
-#lua_dump
-#lua_equal
-#lua_error
-#lua_gc
-#lua_getallocf
-#lua_getfenv
-#lua_getfield
-#lua_gethook
-#lua_gethookcount
-#lua_gethookmask
-#lua_getinfo
-#lua_getlocal
-#lua_getmetatable
-#lua_getstack
-#lua_gettable
-#lua_gettop
-#lua_getupvalue
-#lua_insert
-#lua_iscfunction
-#lua_isnumber
-#lua_isstring
-#lua_isuserdata
-#lua_isyieldable
-#lua_lessthan
-#lua_load
-#lua_loadx
-#lua_newstate
-#lua_newthread
-#lua_newuserdata
-#lua_next
-#lua_objlen
-#lua_pcall
-#lua_pushboolean
-#lua_pushcclosure
-#lua_pushfstring
-#lua_pushinteger
-#lua_pushlightuserdata
-#lua_pushlstring
-#lua_pushnil
-#lua_pushnumber
-#lua_pushstring
-#lua_pushthread
-#lua_pushvalue
-#lua_pushvfstring
-#lua_rawequal
-#lua_rawget
-#lua_rawgeti
-#lua_rawset
-#lua_rawseti
-#lua_remove
-#lua_replace
-#lua_resume
-#lua_setallocf
-#lua_setfenv
-#lua_setfield
-#lua_sethook
-#lua_setlocal
-#lua_setmetatable
-#lua_settable
-#lua_settop
-#lua_setupvalue
-#lua_status
-#lua_toboolean
-#lua_tocfunction
-#lua_tointeger
-#lua_tointegerx
-#lua_tolstring
-#lua_tonumber
-#lua_tonumberx
-#lua_topointer
-#lua_tothread
-#lua_touserdata
-#lua_type
-#lua_typename
-#lua_upvalueid
-#lua_upvaluejoin
-#lua_version
-#lua_version.version
-#lua_xmove
-#lua_yield
-#luaopen_base
-#luaopen_bit
-#luaopen_debug
-#luaopen_ffi
-#luaopen_io
-#luaopen_jit
-#luaopen_jit_profile
-#luaopen_jit_util
-#luaopen_math
-#luaopen_os
-#luaopen_package
-#luaopen_string
-#luaopen_string_buffer
-#luaopen_table
-#luaopen_table_clear
-#luaopen_table_new
