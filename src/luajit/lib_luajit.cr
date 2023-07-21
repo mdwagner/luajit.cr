@@ -232,7 +232,6 @@ module Luajit
     fun luaopen_debug(l : State*) : Int
     fun luaopen_package(l : State*) : Int
 
-    fun luaJIT_version_2_1_0_beta3 : Void
     fun luaJIT_profile_dumpstack(l : State*, fmt : Char*, depth : Int, len : SizeT*) : Char*
     fun luaJIT_profile_start(l : State*, mode : Char*, cb : ProfileCallback, data : Void*) : Void
     fun luaJIT_profile_stop(l : State*) : Void

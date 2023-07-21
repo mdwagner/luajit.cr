@@ -1,9 +1,11 @@
 name: luajit
 version: 0.1.0
+license: MIT
 
 authors:
   - Michael Wagner <mdwranger@gmail.com>
 
 crystal: 1.8.2
 
-license: MIT
+crystalline:
+  main: src/luajit.cr

@@ -8,8 +8,6 @@ module Luajit
     @state : State*
 
     def initialize(state : State*? = nil)
-      LibLuajit.luaJIT_version_2_1_0_beta3 # Linker-enforced version check
-
       @state = state || LibLuajit.luaL_newstate
     end
 
