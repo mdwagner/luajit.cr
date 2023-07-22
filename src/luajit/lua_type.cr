@@ -1,16 +1,16 @@
-module Luajit
-  enum LuaType
-    Bool
-    CFunction
-    Function
-    LightUserdata
-    Nil
-    None
-    NoneOrNil
-    Number
-    String
-    Table
-    Thread
-    Userdata
-  end
-end
+#module Luajit
+  #enum LuaType
+    #Bool
+    #Number
+    #String
+    #Function
+    #CFunction
+    #Userdata
+    #LightUserdata
+    #Thread
+    #Table
+    #Nil
+    #None
+    #NoneOrNil
+  #end
+#end

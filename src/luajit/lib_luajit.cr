@@ -1,10 +1,11 @@
 module Luajit
   @[Link(ldflags: "`pkg-config --cflags --libs luajit`")]
-  lib LibLuajit
+  lib LibLuaJIT
     LUA_MULTRET        =      -1
     LUA_REGISTRYINDEX  = -10_000
     LUA_ENVIRONINDEX   = -10_001
     LUA_GLOBALSINDEX   = -10_002
+    LUA_OK             =       0
     LUA_YIELD          =       1
     LUA_ERRRUN         =       2
     LUA_ERRSYNTAX      =       3
