@@ -1,15 +1,12 @@
 module Luajit
   class VM
-    include Base
-
     # `ptr : Pointer(Void), old_size : UInt64, new_size : UInt64 -> Pointer(Void)`
     alias Allocator = Pointer(Void), UInt64, UInt64 -> Pointer(Void)
 
-    # :nodoc:
-    @box : Pointer(Void)
+    getter state : LuaState
 
     # :nodoc:
-    @ptr : Pointer(LibLuaJIT::State)
+    @box : Pointer(Void)
 
     # Allocates from custom allocator
     def self.alloc(&block : Allocator) : VM
@@ -17,12 +14,15 @@ module Luajit
       proc = LibLuaJIT::Alloc.new do |ud, ptr, osize, nsize|
         Box(typeof(block)).unbox(ud).call(ptr, osize, nsize)
       end
-      new(LibLuaJIT.lua_newstate(proc, box), box)
+      state = LuaState.new(LibLuaJIT.lua_newstate(proc, box))
+      new(state, box)
     end
 
     # Allocates from default LuaJIT allocator
     def self.default : VM
-      new(LibLuaJIT.luaL_newstate, Pointer(Void).null)
+      state = LuaState.new(LibLuaJIT.luaL_newstate)
+      box = Pointer(Void).null
+      new(state, box)
     end
 
     # Allocates from Crystal GC
@@ -37,52 +37,44 @@ module Luajit
       end
     end
 
-    private def initialize(@ptr, @box)
+    private def initialize(@state, @box)
     end
 
     def to_unsafe
-      @ptr
+      @state.to_unsafe
     end
 
-    # :nodoc:
     def finalize
       LibLuaJIT.lua_close(self)
     end
 
-    def open_libs : Nil
-      LibLuaJIT.luaL_openlibs(self)
-    end
-
-    def execute(code : String) : Nil
-      if (r = LibLuaJIT.luaL_loadstring(self, code)) != 0
-        raise "Error(#{r}): Failed to load code into VM"
+    def open_library(type : LuaLibrary) : Nil
+      case type
+      in .base?
+        LibLuaJIT.luaopen_base(self)
+      in .table?
+        LibLuaJIT.luaopen_table(self)
+      in .io?
+        LibLuaJIT.luaopen_io(self)
+      in .os?
+        LibLuaJIT.luaopen_os(self)
+      in .string?
+        LibLuaJIT.luaopen_string(self)
+      in .math?
+        LibLuaJIT.luaopen_math(self)
+      in .debug?
+        LibLuaJIT.luaopen_debug(self)
+      in .package?
+        LibLuaJIT.luaopen_package(self)
+      in .bit?
+        LibLuaJIT.luaopen_bit(self)
+      in .ffi?
+        LibLuaJIT.luaopen_ffi(self)
+      in .jit?
+        LibLuaJIT.luaopen_jit(self)
+      in .all?
+        LibLuaJIT.luaL_openlibs(self)
       end
-      case LibLuaJIT.lua_pcall(self, 0, LibLuaJIT::LUA_MULTRET, 0)
-      when LibLuaJIT::LUA_ERRRUN
-        raise "Lua runtime error"
-      when LibLuaJIT::LUA_ERRMEM
-        raise "Lua memory allocation error"
-      when LibLuaJIT::LUA_ERRERR
-        raise "Error while running error handler function"
-      end
-    end
-
-    def execute(path : Path) : Nil
-      if (r = LibLuaJIT.luaL_loadfile(self, path.to_s)) != 0
-        raise "Error(#{r}): Failed to load file into VM"
-      end
-      case LibLuaJIT.lua_pcall(self, 0, LibLuaJIT::LUA_MULTRET, 0)
-      when LibLuaJIT::LUA_ERRRUN
-        raise "Lua runtime error"
-      when LibLuaJIT::LUA_ERRMEM
-        raise "Lua memory allocation error"
-      when LibLuaJIT::LUA_ERRERR
-        raise "Error while running error handler function"
-      end
-    end
-
-    def to_coroutine(index : Int32) : Coroutine
-      Coroutine.new(LibLuaJIT.lua_tothread(self, index))
     end
 
     def gc(what : LuaGC, data : Int32) : Int32

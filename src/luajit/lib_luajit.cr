@@ -120,13 +120,11 @@ module Luajit
     fun lua_lessthan(l : State*, index1 : Int, index2 : Int) : Int
     fun lua_load(l : State*, reader : Reader*, data : Void*, chunkname : Char*) : Int
     fun lua_newstate(f : Alloc, ud : Void*) : State*
-    fun lua_newtable(l : State*) : Void
     fun lua_newthread(l : State*) : State*
     fun lua_newuserdata(l : State*, size : SizeT) : Void*
     fun lua_next(l : State*, index : Int) : Int
     fun lua_objlen(l : State*, index : Int) : SizeT
     fun lua_pcall(l : State*, nargs : Int, nresults : Int, errfunc : Int) : Int
-    fun lua_pop(l : State*, n : Int) : Void
     fun lua_pushboolean(l : State*, b : Int) : Void
     fun lua_pushcclosure(l : State*, fn : CFunction, n : Int) : Void
     fun lua_pushfstring(l : State*, fmt : Char*, ...) : Char*

@@ -1,11 +1,49 @@
 module Luajit
-  module Base
+  struct LuaState
+    alias CFunction = LibLuaJIT::CFunction
+
+    @ptr : Pointer(LibLuaJIT::State)
+
+    def initialize(@ptr)
+    end
+
+    def to_unsafe
+      @ptr
+    end
+
+    def version : Float64?
+      if ptr = LibLuaJIT.lua_version(self)
+        ptr.value
+      end
+    end
+
+    def at_panic(&cb : CFunction) : CFunction
+      LibLuaJIT.lua_atpanic(self, cb)
+    end
+
+    def call(num_args : Int32, num_results : Int32) : Nil
+      LibLuaJIT.lua_call(self, num_args, num_results)
+    end
+
+    def concat(n : Int32) : Nil
+      LibLuaJIT.lua_concat(self, n)
+    end
+
+    def c_pcall(&block : CFunction) : Int32
+      box = Box(typeof(block)).box(block)
+      proc = CFunction.new do |l|
+        state = LuaState.new(l)
+        Box(typeof(block)).unbox(state.to_userdata(-1)).call(l)
+      end
+      LibLuaJIT.lua_cpcall(self, proc, box)
+    end
+
     def size : Int32
       LibLuaJIT.lua_gettop(self)
     end
 
     def pop(n : Int32) : Nil
-      LibLuaJIT.lua_pop(self, n)
+      LibLuaJIT.lua_settop(self, -(n) - 1)
     end
 
     def get_field(index : Int32, name : String)
@@ -159,6 +197,54 @@ module Luajit
 
     def push_value(index : Int32) : Nil
       LibLuaJIT.lua_pushvalue(self, index)
+    end
+
+    def raw_eq(index1 : Int32, index2 : Int32) : Bool
+      LibLuaJIT.lua_rawequal(self, index1, index2) == true.to_unsafe
+    end
+
+    def raw_get(index : Int32) : Nil
+      LibLuaJIT.lua_rawget(self, index)
+    end
+
+    def raw_geti(index : Int32, n : Int32) : Nil
+      LibLuaJIT.lua_rawgeti(self, index, n)
+    end
+
+    def raw_set(index : Int32) : Nil
+      LibLuaJIT.lua_rawset(self, index)
+    end
+
+    def raw_seti(index : Int32, n : Int32) : Nil
+      LibLuaJIT.lua_rawseti(self, index, n)
+    end
+
+    def execute(code : String) : Nil
+      if (r = LibLuaJIT.luaL_loadstring(self, code)) != 0
+        raise "Error(#{r}): Failed to load code into Lua"
+      end
+      case LibLuaJIT.lua_pcall(self, 0, LibLuaJIT::LUA_MULTRET, 0)
+      when LibLuaJIT::LUA_ERRRUN
+        raise "Lua runtime error"
+      when LibLuaJIT::LUA_ERRMEM
+        raise "Lua memory allocation error"
+      when LibLuaJIT::LUA_ERRERR
+        raise "Error while running error handler function"
+      end
+    end
+
+    def execute(path : Path) : Nil
+      if (r = LibLuaJIT.luaL_loadfile(self, path.to_s)) != 0
+        raise "Error(#{r}): Failed to load file into Lua"
+      end
+      case LibLuaJIT.lua_pcall(self, 0, LibLuaJIT::LUA_MULTRET, 0)
+      when LibLuaJIT::LUA_ERRRUN
+        raise "Lua runtime error"
+      when LibLuaJIT::LUA_ERRMEM
+        raise "Lua memory allocation error"
+      when LibLuaJIT::LUA_ERRERR
+        raise "Error while running error handler function"
+      end
     end
   end
 end
