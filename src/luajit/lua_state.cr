@@ -46,6 +46,22 @@ module Luajit
       LibLuaJIT.lua_settop(self, -(n) - 1)
     end
 
+    def set_field(index : Int32, k : String) : Nil
+      LibLuaJIT.lua_setfield(self, index, k)
+    end
+
+    def set_global(name : String) : Nil
+      set_field(LibLuaJIT::LUA_GLOBALSINDEX, name)
+    end
+
+    def set_metatable(index : Int32) : Int32
+      LibLuaJIT.lua_setmetatable(self, index)
+    end
+
+    def set_table(index : Int32) : Nil
+      LibLuaJIT.lua_settable(self, index)
+    end
+
     def get_field(index : Int32, name : String)
       LibLuaJIT.lua_getfield(self, index, name)
     end
@@ -217,6 +233,17 @@ module Luajit
 
     def raw_seti(index : Int32, n : Int32) : Nil
       LibLuaJIT.lua_rawseti(self, index, n)
+    end
+
+    def status
+      case result = LibLuaJIT.lua_status(self)
+      when LibLuaJIT::LUA_OK
+        LuaStatus::Ok
+      when LibLuaJIT::LUA_YIELD
+        LuaStatus::Yield
+      else
+        LuaStatus.new(result)
+      end
     end
 
     def execute(code : String) : Nil
