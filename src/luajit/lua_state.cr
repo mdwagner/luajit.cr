@@ -1,6 +1,8 @@
 module Luajit
   struct LuaState
     alias CFunction = LibLuaJIT::CFunction
+    alias Function = LuaState -> Int32
+    alias Loader = LuaState, Pointer(UInt64) -> String?
 
     @ptr : Pointer(LibLuaJIT::State)
 
@@ -29,11 +31,12 @@ module Luajit
       LibLuaJIT.lua_concat(self, n)
     end
 
-    def c_pcall(&block : CFunction) : Int32
+    def c_pcall(&block : Function) : Int32
       box = Box(typeof(block)).box(block)
       proc = CFunction.new do |l|
         state = LuaState.new(l)
-        Box(typeof(block)).unbox(state.to_userdata(-1)).call(l)
+        ud = state.to_userdata(-1)
+        Box(typeof(block)).unbox(ud).call(state)
       end
       LibLuaJIT.lua_cpcall(self, proc, box)
     end
@@ -108,6 +111,10 @@ module Luajit
       self
     end
 
+    def <<(n : Int32) : self
+      self << n.to_i64
+    end
+
     def <<(ptr : Pointer(Void)) : self
       LibLuaJIT.lua_pushlightuserdata(self, ptr)
       self
@@ -152,6 +159,18 @@ module Luajit
         LibLuaJIT.settable(self, -3)
       end
       self
+    end
+
+    def push_function(&block : Function) : Nil
+      box = Box(typeof(block)).box(block)
+      proc = CFunction.new do |l|
+        state = LuaState.new(l)
+        ud = state.to_userdata(state.upvalue_at(1))
+        Box(typeof(block)).unbox(ud).call(state)
+      end
+      Luajit.pointers << box
+      self << box
+      LibLuaJIT.lua_pushcclosure(self, proc, 1)
     end
 
     def is?(lua_type : LuaType, index : Int32) : Bool
@@ -235,6 +254,10 @@ module Luajit
       LibLuaJIT.lua_rawseti(self, index, n)
     end
 
+    def upvalue_at(index : Int32) : Int32
+      LibLuaJIT::LUA_GLOBALSINDEX - index
+    end
+
     def status
       case result = LibLuaJIT.lua_status(self)
       when LibLuaJIT::LUA_OK
@@ -243,6 +266,20 @@ module Luajit
         LuaStatus::Yield
       else
         LuaStatus.new(result)
+      end
+    end
+
+    def load(chunk_name : String, &block : Loader) : Int32
+      box = Box(typeof(cb)).box(block)
+      proc = LibLuaJIT::Reader.new do |l, data, size|
+        state = LuaState.new(l)
+        Box(typeof(cb)).unbox(data).call(state, size)
+      end
+      case LibLuaJIT.lua_load(self, proc, box, chunk_name)
+      when LibLuaJIT::LUA_ERRSYNTAX
+        raise "Lua syntax error"
+      when LibLuaJIT::LUA_ERRMEM
+        raise "Lua memory allocation error"
       end
     end
 
