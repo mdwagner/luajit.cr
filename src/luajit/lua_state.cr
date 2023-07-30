@@ -258,6 +258,14 @@ module Luajit
       LibLuaJIT::LUA_GLOBALSINDEX - index
     end
 
+    def raise_error
+      LibLuaJIT.lua_error(self)
+    end
+
+    def raise_error(msg : String)
+      LibLuaJIT.luaL_error(self, msg)
+    end
+
     def status
       case result = LibLuaJIT.lua_status(self)
       when LibLuaJIT::LUA_OK
@@ -309,6 +317,14 @@ module Luajit
       when LibLuaJIT::LUA_ERRERR
         raise "Error while running error handler function"
       end
+    end
+
+    def raise_function_arg(position : Int32, msg : String)
+      LibLuaJIT.luaL_argerror(self, position, msg)
+    end
+
+    def call_metamethod(object_index : Int32, method_name : String) : Bool
+      LibLuaJIT.luaL_callmeta(self, object_index, method_name) == true.to_unsafe
     end
   end
 end

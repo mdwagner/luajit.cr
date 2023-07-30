@@ -105,17 +105,9 @@ module Luajit
     fun lua_gettable(l : State*, index : Int) : Void
     fun lua_gettop(l : State*) : Int
     fun lua_insert(l : State*, index : Int) : Void
-    fun lua_isboolean(l : State*, index : Int) : Int
     fun lua_iscfunction(l : State*, index : Int) : Int
-    fun lua_isfunction(l : State*, index : Int) : Int
-    fun lua_islightuserdata(l : State*, index : Int) : Int
-    fun lua_isnil(l : State*, index : Int) : Int
-    fun lua_isnone(l : State*, index : Int) : Int
-    fun lua_isnoneornil(l : State*, index : Int) : Int
     fun lua_isnumber(l : State*, index : Int) : Int
     fun lua_isstring(l : State*, index : Int) : Int
-    fun lua_istable(l : State*, index : Int) : Int
-    fun lua_isthread(l : State*, index : Int) : Int
     fun lua_isuserdata(l : State*, index : Int) : Int
     fun lua_lessthan(l : State*, index1 : Int, index2 : Int) : Int
     fun lua_load(l : State*, reader : Reader*, data : Void*, chunkname : Char*) : Int
@@ -182,24 +174,19 @@ module Luajit
     fun luaL_addsize(b : Buffer*, n : SizeT) : Void
     fun luaL_addstring(b : Buffer*, s : Char*) : Void
     fun luaL_addvalue(b : Buffer*) : Void
-    fun luaL_argcheck(l : State*, cond : Int, narg : Int, extramsg : Char*) : Void
     fun luaL_argerror(l : State*, narg : Int, extramsg : Char*) : NoReturn
     fun luaL_buffinit(l : State*, b : Buffer*) : Void
     fun luaL_callmeta(l : State*, obj : Int, e : Char*) : Int
     fun luaL_checkany(l : State*, narg : Int) : Void
-    fun luaL_checkint(l : State*, narg : Int) : Int
     fun luaL_checkinteger(l : State*, narg : Int) : Integer
-    fun luaL_checklong(l : State*, narg : Int) : Long
     fun luaL_checklstring(l : State*, narg : Int, len : SizeT*) : Char*
     fun luaL_checknumber(l : State*, narg : Int) : Number
     fun luaL_checkoption(l : State*, narg : Int, _def : Char*, lst : Char**) : Int
     fun luaL_checkstack(l : State*, sz : Int, msg : Char*) : Void
-    fun luaL_checkstring(l : State*, narg : Int) : Char*
     fun luaL_checktype(l : State*, narg : Int, t : Int) : Void
     fun luaL_checkudata(l : State*, narg : Int, tname : Char*) : Void*
     fun luaL_error(l : State*, fmt : Char*, ...) : NoReturn
     fun luaL_getmetafield(l : State*, obj : Int, e : Char*) : Int
-    fun luaL_getmetatable(l : State*, tname : Char*) : Void
     fun luaL_gsub(l : State*, s : Char*, p : Char*, r : Char*) : Char*
     fun luaL_loadbuffer(l : State*, buff : Char*, sz : SizeT, name : Char*) : Int
     fun luaL_loadfile(l : State*, filename : Char*) : Int
@@ -207,17 +194,13 @@ module Luajit
     fun luaL_newmetatable(l : State*, tname : Char*) : Int
     fun luaL_newstate : State*
     fun luaL_openlibs(l : State*) : Void
-    fun luaL_optint(l : State*, narg : Int, d : Int) : Int
     fun luaL_optinteger(l : State*, narg : Int, d : Integer) : Integer
-    fun luaL_optlong(l : State*, narg : Int, d : Long) : Long
     fun luaL_optlstring(l : State*, narg : Int, d : Char*, len : SizeT*) : Char*
     fun luaL_optnumber(l : State*, narg : Int, d : Number) : Number
-    fun luaL_optstring(l : State*, narg : Int, d : Char*) : Char*
     fun luaL_prepbuffer(b : Buffer*) : Char*
     fun luaL_pushresult(b : Buffer*) : Void
     fun luaL_ref(l : State*, t : Int) : Int
     fun luaL_register(l : State*, libname : Char*, lr : Reg*) : Void
-    fun luaL_typename(l : State*, index : Int) : Char*
     fun luaL_typerror(l : State*, narg : Int, tname : Char*) : Int
     fun luaL_unref(l : State*, t : Int, ref : Int) : Void
     fun luaL_where(l : State*, lvl : Int) : Void
@@ -260,5 +243,148 @@ module Luajit
     fun luaopen_bit(l : State*) : Int
     fun luaopen_ffi(l : State*) : Int
     fun luaopen_jit(l : State*) : Int
+  end
+
+  # :nodoc:
+  module LibxLuaJIT
+    extend self
+
+    def lua_pop(l : LibLuaJIT::State*, n : Int32) : Nil
+      LibLuaJIT.lua_settop(l, -(n) - 1)
+    end
+
+    def lua_newtable(l : LibLuaJIT::State*) : Nil
+      LibLuaJIT.lua_createtable(l, 0, 0)
+    end
+
+    def lua_pushcfunction(l : LibLuaJIT::State*, f : LibLuaJIT::CFunction) : Nil
+      LibLuaJIT.lua_pushcclosure(l, f, 0)
+    end
+
+    def lua_strlen(l : LibLuaJIT::State*, i : Int32) : UInt64
+      LibLuaJIT.lua_objlen(l, i)
+    end
+
+    def lua_isfunction(l : LibLuaJIT::State*, n : Int32) : Bool
+      LibLuaJIT.lua_type(l, n) == LibLuaJIT::LUA_TFUNCTION
+    end
+
+    def lua_istable(l : LibLuaJIT::State*, n : Int32) : Bool
+      LibLuaJIT.lua_type(l, n) == LibLuaJIT::LUA_TTABLE
+    end
+
+    def lua_islightuserdata(l : LibLuaJIT::State*, n : Int32) : Bool
+      LibLuaJIT.lua_type(l, n) == LibLuaJIT::LUA_TLIGHTUSERDATA
+    end
+
+    def lua_isnil(l : LibLuaJIT::State*, n : Int32) : Bool
+      LibLuaJIT.lua_type(l, n) == LibLuaJIT::LUA_TNIL
+    end
+
+    def lua_isboolean(l : LibLuaJIT::State*, n : Int32) : Bool
+      LibLuaJIT.lua_type(l, n) == LibLuaJIT::LUA_TBOOLEAN
+    end
+
+    def lua_isthread(l : LibLuaJIT::State*, n : Int32) : Bool
+      LibLuaJIT.lua_type(l, n) == LibLuaJIT::LUA_TTHREAD
+    end
+
+    def lua_isnone(l : LibLuaJIT::State*, n : Int32) : Bool
+      LibLuaJIT.lua_type(l, n) == LibLuaJIT::LUA_TNONE
+    end
+
+    def lua_isnoneornil(l : LibLuaJIT::State*, n : Int32) : Bool
+      LibLuaJIT.lua_type(l, n) <= 0
+    end
+
+    def lua_pushliteral(l : LibLuaJIT::State*, s : String) : Nil
+      LibLuaJIT.lua_pushlstring(l, s, s.size)
+    end
+
+    def lua_setglobal(l : LibLuaJIT::State*, s : String) : Nil
+      LibLuaJIT.lua_setfield(l, LibLuaJIT::LUA_GLOBALSINDEX, s)
+    end
+
+    def lua_getglobal(l : LibLuaJIT::State*, s : String) : Nil
+      LibLuaJIT.lua_getfield(l, LibLuaJIT::LUA_GLOBALSINDEX, s)
+    end
+
+    def lua_register(l : LibLuaJIT::State*, n : String, f : LibLuaJIT::CFunction) : Nil
+      lua_pushcfunction(l, f)
+      lua_setglobal(l, n)
+    end
+
+    def lua_tostring(l : LibLuaJIT::State*, i : Int32) : String
+      String.new(LibLuaJIT.lua_tolstring(l, i, nil))
+    end
+
+    def lua_open : LibLuaJIT::State*
+      LibLuaJIT.luaL_newstate
+    end
+
+    def lua_getregistry(l : LibLuaJIT::State*) : Nil
+      LibLuaJIT.lua_pushvalue(l, LibLuaJIT::LUA_REGISTRYINDEX)
+    end
+
+    def lua_getgccount(l : LibLuaJIT::State*) : Int32
+      LibLuaJIT.lua_gc(l, LibLuaJIT::LUA_GCCOUNT, 0)
+    end
+
+    def luaL_argcheck(l : LibLuaJIT::State*, cond : Bool, numarg : Int32, extramsg : String)
+      LibLuaJIT.luaL_argerror(l, numarg, extramsg) unless cond
+    end
+
+    def luaL_checkstring(l : LibLuaJIT::State*, n : Int32) : String
+      String.new(LibLuaJIT.luaL_checklstring(l, n, nil))
+    end
+
+    def luaL_optstring(l : LibLuaJIT::State*, n : Int32, d : String) : String
+      String.new(LibLuaJIT.luaL_optlstring(l, n, d, nil))
+    end
+
+    def luaL_checkint(l : LibLuaJIT::State*, n : Int32) : Int32
+      LibLuaJIT.luaL_checkinteger(l, n).to_i
+    end
+
+    def luaL_optint(l : LibLuaJIT::State*, n : Int32, d : Int64) : Int32
+      LibLuaJIT.luaL_optinteger(l, n, d).to_i
+    end
+
+    def luaL_checklong(l : LibLuaJIT::State*, n : Int32) : Int64
+      LibLuaJIT.luaL_checkinteger(l, n).to_i64
+    end
+
+    def luaL_optlong(l : LibLuaJIT::State*, n : Int32, d : Int64) : Int64
+      LibLuaJIT.luaL_optinteger(l, n, d).to_i64
+    end
+
+    def luaL_typename(l : LibLuaJIT::State*, i : Int32) : String
+      String.new(LibLuaJIT.lua_typename(l, LibLuaJIT.lua_type(l, i)))
+    end
+
+    def luaL_dofile(l : LibLuaJIT::State*, filename : Path) : Int32
+      r = LibLuaJIT.luaL_loadfile(l, filename.to_s)
+      return LibLuaJIT.lua_pcall(l, 0, LibLuaJIT::LUA_MULTRET, 0) if r == 0
+      r
+    end
+
+    def luaL_dostring(l : LibLuaJIT::State*, str : String) : Int32
+      r = LibLuaJIT.luaL_loadstring(l, str)
+      return LibLuaJIT.lua_pcall(l, 0, LibLuaJIT::LUA_MULTRET, 0) if r == 0
+      r
+    end
+
+    def luaL_getmetatable(l : LibLuaJIT::State*, n : String) : Nil
+      LibLuaJIT.lua_getfield(l, LibLuaJIT::LUA_REGISTRYINDEX, n)
+    end
+
+    def luaL_newlibtable(l : LibLuaJIT::State*, lr : Array(LibLuaJIT::Reg)) : Nil
+      LibLuaJIT.lua_createtable(l, 0, lr.size)
+    end
+
+    def luaL_newlib(l : LibLuaJIT::State*, lr : Array(LibLuaJIT::Reg)) : Nil
+      luaL_newlibtable(l, lr)
+      LibLuaJIT.luaL_setfuncs(l, lr, 0)
+    end
   end
 end
