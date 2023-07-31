@@ -249,140 +249,140 @@ module Luajit
   module LibxLuaJIT
     extend self
 
-    def lua_pop(l : LibLuaJIT::State*, n : Int32) : Nil
+    def lua_pop(l, n : Int32) : Nil
       LibLuaJIT.lua_settop(l, -(n) - 1)
     end
 
-    def lua_newtable(l : LibLuaJIT::State*) : Nil
+    def lua_newtable(l) : Nil
       LibLuaJIT.lua_createtable(l, 0, 0)
     end
 
-    def lua_pushcfunction(l : LibLuaJIT::State*, f : LibLuaJIT::CFunction) : Nil
+    def lua_pushcfunction(l, f : LibLuaJIT::CFunction) : Nil
       LibLuaJIT.lua_pushcclosure(l, f, 0)
     end
 
-    def lua_strlen(l : LibLuaJIT::State*, i : Int32) : UInt64
+    def lua_strlen(l, i : Int32) : UInt64
       LibLuaJIT.lua_objlen(l, i)
     end
 
-    def lua_isfunction(l : LibLuaJIT::State*, n : Int32) : Bool
+    def lua_isfunction(l, n : Int32) : Bool
       LibLuaJIT.lua_type(l, n) == LibLuaJIT::LUA_TFUNCTION
     end
 
-    def lua_istable(l : LibLuaJIT::State*, n : Int32) : Bool
+    def lua_istable(l, n : Int32) : Bool
       LibLuaJIT.lua_type(l, n) == LibLuaJIT::LUA_TTABLE
     end
 
-    def lua_islightuserdata(l : LibLuaJIT::State*, n : Int32) : Bool
+    def lua_islightuserdata(l, n : Int32) : Bool
       LibLuaJIT.lua_type(l, n) == LibLuaJIT::LUA_TLIGHTUSERDATA
     end
 
-    def lua_isnil(l : LibLuaJIT::State*, n : Int32) : Bool
+    def lua_isnil(l, n : Int32) : Bool
       LibLuaJIT.lua_type(l, n) == LibLuaJIT::LUA_TNIL
     end
 
-    def lua_isboolean(l : LibLuaJIT::State*, n : Int32) : Bool
+    def lua_isboolean(l, n : Int32) : Bool
       LibLuaJIT.lua_type(l, n) == LibLuaJIT::LUA_TBOOLEAN
     end
 
-    def lua_isthread(l : LibLuaJIT::State*, n : Int32) : Bool
+    def lua_isthread(l, n : Int32) : Bool
       LibLuaJIT.lua_type(l, n) == LibLuaJIT::LUA_TTHREAD
     end
 
-    def lua_isnone(l : LibLuaJIT::State*, n : Int32) : Bool
+    def lua_isnone(l, n : Int32) : Bool
       LibLuaJIT.lua_type(l, n) == LibLuaJIT::LUA_TNONE
     end
 
-    def lua_isnoneornil(l : LibLuaJIT::State*, n : Int32) : Bool
+    def lua_isnoneornil(l, n : Int32) : Bool
       LibLuaJIT.lua_type(l, n) <= 0
     end
 
-    def lua_pushliteral(l : LibLuaJIT::State*, s : String) : Nil
+    def lua_pushliteral(l, s : String) : Nil
       LibLuaJIT.lua_pushlstring(l, s, s.size)
     end
 
-    def lua_setglobal(l : LibLuaJIT::State*, s : String) : Nil
+    def lua_setglobal(l, s : String) : Nil
       LibLuaJIT.lua_setfield(l, LibLuaJIT::LUA_GLOBALSINDEX, s)
     end
 
-    def lua_getglobal(l : LibLuaJIT::State*, s : String) : Nil
+    def lua_getglobal(l, s : String) : Nil
       LibLuaJIT.lua_getfield(l, LibLuaJIT::LUA_GLOBALSINDEX, s)
     end
 
-    def lua_register(l : LibLuaJIT::State*, n : String, f : LibLuaJIT::CFunction) : Nil
+    def lua_register(l, n : String, f : LibLuaJIT::CFunction) : Nil
       lua_pushcfunction(l, f)
       lua_setglobal(l, n)
     end
 
-    def lua_tostring(l : LibLuaJIT::State*, i : Int32) : String
+    def lua_tostring(l, i : Int32) : String
       String.new(LibLuaJIT.lua_tolstring(l, i, nil))
     end
 
-    def lua_open : LibLuaJIT::State*
+    def lua_open
       LibLuaJIT.luaL_newstate
     end
 
-    def lua_getregistry(l : LibLuaJIT::State*) : Nil
+    def lua_getregistry(l) : Nil
       LibLuaJIT.lua_pushvalue(l, LibLuaJIT::LUA_REGISTRYINDEX)
     end
 
-    def lua_getgccount(l : LibLuaJIT::State*) : Int32
+    def lua_getgccount(l) : Int32
       LibLuaJIT.lua_gc(l, LibLuaJIT::LUA_GCCOUNT, 0)
     end
 
-    def luaL_argcheck(l : LibLuaJIT::State*, cond : Bool, numarg : Int32, extramsg : String)
+    def luaL_argcheck(l, cond : Bool, numarg : Int32, extramsg : String)
       LibLuaJIT.luaL_argerror(l, numarg, extramsg) unless cond
     end
 
-    def luaL_checkstring(l : LibLuaJIT::State*, n : Int32) : String
+    def luaL_checkstring(l, n : Int32) : String
       String.new(LibLuaJIT.luaL_checklstring(l, n, nil))
     end
 
-    def luaL_optstring(l : LibLuaJIT::State*, n : Int32, d : String) : String
+    def luaL_optstring(l, n : Int32, d : String) : String
       String.new(LibLuaJIT.luaL_optlstring(l, n, d, nil))
     end
 
-    def luaL_checkint(l : LibLuaJIT::State*, n : Int32) : Int32
+    def luaL_checkint(l, n : Int32) : Int32
       LibLuaJIT.luaL_checkinteger(l, n).to_i
     end
 
-    def luaL_optint(l : LibLuaJIT::State*, n : Int32, d : Int64) : Int32
+    def luaL_optint(l, n : Int32, d : Int64) : Int32
       LibLuaJIT.luaL_optinteger(l, n, d).to_i
     end
 
-    def luaL_checklong(l : LibLuaJIT::State*, n : Int32) : Int64
+    def luaL_checklong(l, n : Int32) : Int64
       LibLuaJIT.luaL_checkinteger(l, n).to_i64
     end
 
-    def luaL_optlong(l : LibLuaJIT::State*, n : Int32, d : Int64) : Int64
+    def luaL_optlong(l, n : Int32, d : Int64) : Int64
       LibLuaJIT.luaL_optinteger(l, n, d).to_i64
     end
 
-    def luaL_typename(l : LibLuaJIT::State*, i : Int32) : String
+    def luaL_typename(l, i : Int32) : String
       String.new(LibLuaJIT.lua_typename(l, LibLuaJIT.lua_type(l, i)))
     end
 
-    def luaL_dofile(l : LibLuaJIT::State*, filename : Path) : Int32
+    def luaL_dofile(l, filename : Path) : Int32
       r = LibLuaJIT.luaL_loadfile(l, filename.to_s)
       return LibLuaJIT.lua_pcall(l, 0, LibLuaJIT::LUA_MULTRET, 0) if r == 0
       r
     end
 
-    def luaL_dostring(l : LibLuaJIT::State*, str : String) : Int32
+    def luaL_dostring(l, str : String) : Int32
       r = LibLuaJIT.luaL_loadstring(l, str)
       return LibLuaJIT.lua_pcall(l, 0, LibLuaJIT::LUA_MULTRET, 0) if r == 0
       r
     end
 
-    def luaL_getmetatable(l : LibLuaJIT::State*, n : String) : Nil
+    def luaL_getmetatable(l, n : String) : Nil
       LibLuaJIT.lua_getfield(l, LibLuaJIT::LUA_REGISTRYINDEX, n)
     end
 
-    def luaL_newlibtable(l : LibLuaJIT::State*, lr : Array(LibLuaJIT::Reg)) : Nil
+    def luaL_newlibtable(l, lr : Array(LibLuaJIT::Reg)) : Nil
       LibLuaJIT.lua_createtable(l, 0, lr.size)
     end
 
-    def luaL_newlib(l : LibLuaJIT::State*, lr : Array(LibLuaJIT::Reg)) : Nil
+    def luaL_newlib(l, lr : Array(LibLuaJIT::Reg)) : Nil
       luaL_newlibtable(l, lr)
       LibLuaJIT.luaL_setfuncs(l, lr, 0)
     end

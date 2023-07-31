@@ -143,7 +143,7 @@ module Luajit
     end
 
     def get_global(name : String)
-      LibxLuaJIT.lua_getglobal(to_unsafe, name)
+      LibxLuaJIT.lua_getglobal(self, name)
     end
 
     def to_boolean(index : Int32) : Bool
@@ -159,7 +159,7 @@ module Luajit
     end
 
     def to_string(index : Int32) : String
-      LibxLuaJIT.lua_tostring(to_unsafe, index)
+      LibxLuaJIT.lua_tostring(self, index)
     end
 
     def to_f(index : Int32) : Float64
@@ -249,29 +249,29 @@ module Luajit
     def is?(lua_type : LuaType, index : Int32) : Bool
       case lua_type
       in .bool?
-        LibxLuaJIT.lua_isboolean(to_unsafe, index)
+        LibxLuaJIT.lua_isboolean(self, index)
       in .number?
         LibLuaJIT.lua_isnumber(self, index) == true.to_unsafe
       in .string?
         LibLuaJIT.lua_isstring(self, index) == true.to_unsafe
       in .function?
-        LibxLuaJIT.lua_isfunction(to_unsafe, index)
+        LibxLuaJIT.lua_isfunction(self, index)
       in .c_function?
         LibLuaJIT.lua_iscfunction(self, index) == true.to_unsafe
       in .userdata?
         LibLuaJIT.lua_isuserdata(self, index) == true.to_unsafe
       in .light_userdata?
-        LibxLuaJIT.lua_islightuserdata(to_unsafe, index)
+        LibxLuaJIT.lua_islightuserdata(self, index)
       in .thread?
-        LibxLuaJIT.lua_isthread(to_unsafe, index)
+        LibxLuaJIT.lua_isthread(self, index)
       in .table?
-        LibxLuaJIT.lua_istable(to_unsafe, index)
+        LibxLuaJIT.lua_istable(self, index)
       in LuaType::Nil
-        LibxLuaJIT.lua_isnil(to_unsafe, index)
+        LibxLuaJIT.lua_isnil(self, index)
       in .none?
-        LibxLuaJIT.lua_isnone(to_unsafe, index)
+        LibxLuaJIT.lua_isnone(self, index)
       in .none_or_nil?
-        LibxLuaJIT.lua_isnoneornil(to_unsafe, index)
+        LibxLuaJIT.lua_isnoneornil(self, index)
       end
     end
 
@@ -365,7 +365,7 @@ module Luajit
     end
 
     def execute(code : String) : Nil
-      case LibxLuaJIT.luaL_dostring(to_unsafe, code)
+      case LibxLuaJIT.luaL_dostring(self, code)
       when LibLuaJIT::LUA_ERRRUN
         raise "Lua runtime error"
       when LibLuaJIT::LUA_ERRMEM
@@ -376,7 +376,7 @@ module Luajit
     end
 
     def execute(path : Path) : Nil
-      case LibxLuaJIT.luaL_dofile(to_unsafe, path)
+      case LibxLuaJIT.luaL_dofile(self, path)
       when LibLuaJIT::LUA_ERRRUN
         raise "Lua runtime error"
       when LibLuaJIT::LUA_ERRMEM
