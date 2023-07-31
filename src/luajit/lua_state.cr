@@ -1,10 +1,29 @@
 module Luajit
   struct LuaState
+    alias Alloc = LibLuaJIT::Alloc
     alias CFunction = LibLuaJIT::CFunction
     alias Function = LuaState -> Int32
     alias Loader = LuaState, Pointer(UInt64) -> String?
 
     @ptr : Pointer(LibLuaJIT::State)
+
+    # Allocates from default LuaJIT allocator
+    def self.default : LuaState
+      new(LibLuaJIT.luaL_newstate)
+    end
+
+    # Allocates from Crystal GC
+    def self.new : LuaState
+      proc = Alloc.new do |_, ptr, osize, nsize|
+        if nsize == 0
+          GC.free(ptr)
+          Pointer(Void).null
+        else
+          GC.realloc(ptr, nsize)
+        end
+      end
+      new(LibLuaJIT.lua_newstate(proc, Pointer(Void).null))
+    end
 
     def initialize(@ptr)
     end
@@ -13,9 +32,63 @@ module Luajit
       @ptr
     end
 
-    def version : Float64?
+    def version? : Float64?
       if ptr = LibLuaJIT.lua_version(self)
         ptr.value
+      end
+    end
+
+    def version : Float64
+      version?.not_nil!
+    end
+
+    def open_library(type : LuaLibrary) : Nil
+      case type
+      in .base?
+        LibLuaJIT.luaopen_base(self)
+      in .table?
+        LibLuaJIT.luaopen_table(self)
+      in .io?
+        LibLuaJIT.luaopen_io(self)
+      in .os?
+        LibLuaJIT.luaopen_os(self)
+      in .string?
+        LibLuaJIT.luaopen_string(self)
+      in .math?
+        LibLuaJIT.luaopen_math(self)
+      in .debug?
+        LibLuaJIT.luaopen_debug(self)
+      in .package?
+        LibLuaJIT.luaopen_package(self)
+      in .bit?
+        LibLuaJIT.luaopen_bit(self)
+      in .ffi?
+        LibLuaJIT.luaopen_ffi(self)
+      in .jit?
+        LibLuaJIT.luaopen_jit(self)
+      in .all?
+        LibLuaJIT.luaL_openlibs(self)
+      end
+    end
+
+    def gc(what : LuaGC, data : Int32) : Int32
+      case what
+      in .stop?
+        LibLuaJIT.lua_gc(self, LibLuaJIT::LUA_GCSTOP, data)
+      in .restart?
+        LibLuaJIT.lua_gc(self, LibLuaJIT::LUA_GCRESTART, data)
+      in .collect?
+        LibLuaJIT.lua_gc(self, LibLuaJIT::LUA_GCCOLLECT, data)
+      in .count?
+        LibLuaJIT.lua_gc(self, LibLuaJIT::LUA_GCCOUNT, data)
+      in .count_bytes?
+        LibLuaJIT.lua_gc(self, LibLuaJIT::LUA_GCCOUNTB, data)
+      in .step?
+        LibLuaJIT.lua_gc(self, LibLuaJIT::LUA_GCSTEP, data)
+      in .set_pause?
+        LibLuaJIT.lua_gc(self, LibLuaJIT::LUA_GCSETPAUSE, data)
+      in .set_step_multiplier?
+        LibLuaJIT.lua_gc(self, LibLuaJIT::LUA_GCSETSTEPMUL, data)
       end
     end
 
@@ -46,7 +119,7 @@ module Luajit
     end
 
     def pop(n : Int32) : Nil
-      LibLuaJIT.lua_settop(self, -(n) - 1)
+      LibxLuaJIT.lua_pop(self, n)
     end
 
     def set_field(index : Int32, k : String) : Nil
@@ -54,7 +127,7 @@ module Luajit
     end
 
     def set_global(name : String) : Nil
-      set_field(LibLuaJIT::LUA_GLOBALSINDEX, name)
+      LibxLuaJIT.lua_setglobal(self, name)
     end
 
     def set_metatable(index : Int32) : Int32
@@ -70,7 +143,7 @@ module Luajit
     end
 
     def get_global(name : String)
-      get_field(LibLuaJIT::LUA_GLOBALSINDEX, name)
+      LibxLuaJIT.lua_getglobal(to_unsafe, name)
     end
 
     def to_boolean(index : Int32) : Bool
@@ -86,7 +159,7 @@ module Luajit
     end
 
     def to_string(index : Int32) : String
-      String.new(LibLuaJIT.lua_tolstring(self, index, nil))
+      LibxLuaJIT.lua_tostring(to_unsafe, index)
     end
 
     def to_f(index : Int32) : Float64
@@ -144,19 +217,19 @@ module Luajit
     end
 
     def <<(arr : Array) : self
-      LibLuaJIT.createtable(self, arr.size, 0)
+      LibLuaJIT.lua_createtable(self, arr.size, 0)
       arr.each_with_index do |item, index|
         self << index << item
-        LibLuaJIT.settable(self, -3)
+        LibLuaJIT.lua_settable(self, -3)
       end
       self
     end
 
     def <<(hash : Hash) : self
-      LibLuaJIT.createtable(self, 0, hash.size)
+      LibLuaJIT.lua_createtable(self, 0, hash.size)
       hash.each do |key, value|
         self << key << value
-        LibLuaJIT.settable(self, -3)
+        LibLuaJIT.lua_settable(self, -3)
       end
       self
     end
@@ -176,34 +249,34 @@ module Luajit
     def is?(lua_type : LuaType, index : Int32) : Bool
       case lua_type
       in .bool?
-        LibLuaJIT.lua_type(self, index) == LibLuaJIT::LUA_TBOOLEAN
+        LibxLuaJIT.lua_isboolean(to_unsafe, index)
       in .number?
-        LibLuaJIT.lua_isnumber(self, index) == 1
+        LibLuaJIT.lua_isnumber(self, index) == true.to_unsafe
       in .string?
-        LibLuaJIT.lua_isstring(self, index) == 1
+        LibLuaJIT.lua_isstring(self, index) == true.to_unsafe
       in .function?
-        LibLuaJIT.lua_type(self, index) == LibLuaJIT::LUA_TFUNCTION
+        LibxLuaJIT.lua_isfunction(to_unsafe, index)
       in .c_function?
-        LibLuaJIT.lua_iscfunction(self, index) == 1
+        LibLuaJIT.lua_iscfunction(self, index) == true.to_unsafe
       in .userdata?
-        LibLuaJIT.lua_isuserdata(self, index) == 1
+        LibLuaJIT.lua_isuserdata(self, index) == true.to_unsafe
       in .light_userdata?
-        LibLuaJIT.lua_type(self, index) == LibLuaJIT::LUA_TLIGHTUSERDATA
+        LibxLuaJIT.lua_islightuserdata(to_unsafe, index)
       in .thread?
-        LibLuaJIT.lua_type(self, index) == LibLuaJIT::LUA_TTHREAD
+        LibxLuaJIT.lua_isthread(to_unsafe, index)
       in .table?
-        LibLuaJIT.lua_type(self, index) == LibLuaJIT::LUA_TTABLE
+        LibxLuaJIT.lua_istable(to_unsafe, index)
       in LuaType::Nil
-        LibLuaJIT.lua_type(self, index) == LibLuaJIT::LUA_TNIL
+        LibxLuaJIT.lua_isnil(to_unsafe, index)
       in .none?
-        LibLuaJIT.lua_type(self, index) == LibLuaJIT::LUA_TNONE
+        LibxLuaJIT.lua_isnone(to_unsafe, index)
       in .none_or_nil?
-        LibLuaJIT.lua_type(self, index) <= 0
+        LibxLuaJIT.lua_isnoneornil(to_unsafe, index)
       end
     end
 
     def less_than(index1 : Int32, index2 : Int32) : Bool
-      LibLuaJIT.lua_lessthan(self, index1, index2) == 1
+      LibLuaJIT.lua_lessthan(self, index1, index2) == true.to_unsafe
     end
 
     def insert(index : Int32) : Nil
@@ -292,10 +365,7 @@ module Luajit
     end
 
     def execute(code : String) : Nil
-      if (r = LibLuaJIT.luaL_loadstring(self, code)) != 0
-        raise "Error(#{r}): Failed to load code into Lua"
-      end
-      case LibLuaJIT.lua_pcall(self, 0, LibLuaJIT::LUA_MULTRET, 0)
+      case LibxLuaJIT.luaL_dostring(to_unsafe, code)
       when LibLuaJIT::LUA_ERRRUN
         raise "Lua runtime error"
       when LibLuaJIT::LUA_ERRMEM
@@ -306,10 +376,7 @@ module Luajit
     end
 
     def execute(path : Path) : Nil
-      if (r = LibLuaJIT.luaL_loadfile(self, path.to_s)) != 0
-        raise "Error(#{r}): Failed to load file into Lua"
-      end
-      case LibLuaJIT.lua_pcall(self, 0, LibLuaJIT::LUA_MULTRET, 0)
+      case LibxLuaJIT.luaL_dofile(to_unsafe, path)
       when LibLuaJIT::LUA_ERRRUN
         raise "Lua runtime error"
       when LibLuaJIT::LUA_ERRMEM
