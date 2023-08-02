@@ -163,7 +163,7 @@ module Luajit
     end
 
     def to_f(index : Int32) : Float64
-      LibLuajit.lua_tonumber(self, index)
+      LibLuaJIT.lua_tonumber(self, index)
     end
 
     def to_pointer(index : Int32) : Pointer(Void)
@@ -172,6 +172,14 @@ module Luajit
 
     def to_userdata(index : Int32) : Pointer(Void)
       LibLuaJIT.lua_touserdata(self, index)
+    end
+
+    def to_userdata(_type : U.class, index : Int32) : Pointer(U) forall U
+      to_userdata(index).as(Pointer(U))
+    end
+
+    def new_userdata(_type : U.class) : Pointer(U) forall U
+      LibLuaJIT.lua_newuserdata(self, sizeof(U)).as(Pointer(U))
     end
 
     def <<(b : Bool) : self
