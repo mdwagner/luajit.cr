@@ -5,6 +5,8 @@ module Luajit
     alias Function = LuaState -> Int32
     alias Loader = LuaState, Pointer(UInt64) -> String?
 
+    class_getter trackables = [] of Pointer(Void)
+
     @ptr : Pointer(LibLuaJIT::State)
 
     # Allocates from default LuaJIT allocator
@@ -178,8 +180,11 @@ module Luajit
       to_userdata(index).as(Pointer(U))
     end
 
-    def new_userdata(_type : U.class) : Pointer(U) forall U
-      LibLuaJIT.lua_newuserdata(self, sizeof(U)).as(Pointer(U))
+    # Creates a new userdata from `object` in Lua, adding it to the stack,
+    # and tracks it within Crystal to avoid accidental GC
+    def new_userdata(object) : Nil
+      LuaState.trackables << Box.box(object) # TODO: untrack on finalize?
+      LibLuaJIT.lua_newuserdata(self, sizeof(typeof(object))).as(Pointer(typeof(object))).value = object
     end
 
     def <<(b : Bool) : self
@@ -249,7 +254,7 @@ module Luajit
         ud = state.to_userdata(state.upvalue_at(1))
         Box(typeof(block)).unbox(ud).call(state)
       end
-      Luajit.pointers << box
+      Luajit::POINTERS << box
       self << box
       LibLuaJIT.lua_pushcclosure(self, proc, 1)
     end
