@@ -148,6 +148,29 @@ module Luajit
       LibxLuaJIT.lua_getglobal(self, name)
     end
 
+    # Creates a new table to be used as a metatable for userdata,
+    # and adds it to the registry with key `tname`.
+    #
+    # 0 - Already exists in registry
+    # 1 - Added to registry
+    def new_metatable(tname : String) : Int32
+      LibLuaJIT.luaL_newmetatable(self, tname)
+    end
+
+    def attach_metatable(object, index : Int32) : Nil
+      name = metatable_name(object)
+      LibxLuaJIT.luaL_getmetatable(self, name)
+      set_metatable(index)
+    end
+
+    def metatable_name(object) : String
+      raw_metatable_name(typeof(object))
+    end
+
+    def raw_metatable_name(raw) : String
+      "luajit_cr__#{raw}"
+    end
+
     def to_boolean(index : Int32) : Bool
       LibLuaJIT.lua_toboolean(self, index) == true.to_unsafe
     end
@@ -181,10 +204,19 @@ module Luajit
     end
 
     # Creates a new userdata from `object` in Lua, adding it to the stack,
-    # and tracks it within Crystal to avoid accidental GC
-    def new_userdata(object) : Nil
+    # and tracks it within Crystal to avoid accidental GC.
+    #
+    # Returns the index of the userdata.
+    def new_userdata(object) : Int32
       LuaState.trackables << Box.box(object) # TODO: untrack on finalize?
       LibLuaJIT.lua_newuserdata(self, sizeof(typeof(object))).as(Pointer(typeof(object))).value = object
+      size
+    end
+
+    def remove_trackable(object_id) : Nil
+      LuaState.trackables.reject! do |ptr|
+        ptr.address == object_id
+      end
     end
 
     def <<(b : Bool) : self
@@ -254,7 +286,7 @@ module Luajit
         ud = state.to_userdata(state.upvalue_at(1))
         Box(typeof(block)).unbox(ud).call(state)
       end
-      Luajit::POINTERS << box
+      LuaState.trackables << box
       self << box
       LibLuaJIT.lua_pushcclosure(self, proc, 1)
     end
@@ -405,6 +437,10 @@ module Luajit
 
     def call_metamethod(object_index : Int32, method_name : String) : Bool
       LibLuaJIT.luaL_callmeta(self, object_index, method_name) == true.to_unsafe
+    end
+
+    def new_table : Nil
+      LibxLuaJIT.lua_newtable(self)
     end
   end
 end

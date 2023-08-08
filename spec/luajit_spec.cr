@@ -76,14 +76,42 @@ describe Luajit do
   it "lua_bind example" do
     l = Luajit::LuaState.new
     l.open_library(:all)
-    Luajit.lua_bind(l, Sprite)
-    l.execute <<-LUA
-    sprite = lua_new()
-    lua_get(sprite)
-    move(sprite, 10, 6)
-    lua_get(sprite)
-    move(sprite, 1, 8)
-    lua_get(sprite)
-    LUA
+    l.tap do |state|
+      Luajit.bind_class(state, Sprite)
+    end
+
+    begin
+      l.execute <<-LUA
+      local function get_keys(t)
+        local keys={}
+        for key,_ in pairs(t) do
+          table.insert(keys, key)
+        end
+        return keys
+      end
+
+      for _, v in ipairs(get_keys(Sprite)) do
+        print(v)
+      end
+      sprite = Sprite.new()
+      sprite:move(5, 7)     -- Sprite.move(sprite, 5, 7)
+      sprite:draw()
+      sprite:move(1, 2)
+      sprite:draw()
+
+      props = sprite:props()
+      for _, v in ipairs(get_keys(props)) do
+        print(v)
+      end
+      print(props.x)
+      print(props.y)
+
+      sprite2 = Sprite.new()
+      sprite2:move(3, 3)
+      sprite2:draw()
+      LUA
+    rescue
+      puts l.to_string(-1)
+    end
   end
 end
