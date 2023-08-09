@@ -73,51 +73,57 @@ describe Luajit do
     end
   end
 
-  it "lua_bind example" do
-    l = Luajit::LuaState.new
-    l.open_library(:all)
-    l.tap do |state|
-      Luajit.bind_class(state, Sprite)
-    end
+  it "bind_class example" do
+    Luajit::LuaState.trackables.size.should eq(0)
+    Luajit::LuaState.run do |l|
+      l.tap do |state|
+        Luajit.bind_class(state, Sprite)
+      end
 
-    begin
-      l.execute <<-LUA
-      local function get_keys(t)
-        local keys={}
-        for key,_ in pairs(t) do
-          table.insert(keys, key)
+      begin
+        l.execute <<-LUA
+        local function get_keys(t)
+          local keys={}
+          for key,_ in pairs(t) do
+            table.insert(keys, key)
+          end
+          return keys
         end
-        return keys
-      end
+        for _, v in ipairs(get_keys(Sprite)) do
+          print(v)
+        end
 
-      for _, v in ipairs(get_keys(Sprite)) do
-        print(v)
-      end
-      sprite = Sprite.new()
-      sprite:move(5, 7)     -- Sprite.move(sprite, 5, 7)
-      sprite:draw()
-      sprite:move(1, 2)
-      sprite:draw()
+        sprite = Sprite.new()
+        sprite:move(5, 7)     -- Sprite.move(sprite, 5, 7)
+        sprite:draw()
+        sprite:move(1, 2)
+        sprite:draw()
 
-      props = sprite:props()
-      for _, v in ipairs(get_keys(props)) do
-        print(v)
-      end
-      print(props.x)
-      print(props.y)
+        props = sprite:props()
+        for _, v in ipairs(get_keys(props)) do
+          print(v)
+        end
+        print(props.x)
+        print(props.y)
 
-      sprite2 = Sprite.new()
-      sprite2:move(3, 3)
-      sprite2:draw()
-      sprite2:move(1, 2)
-      sprite2:draw()
-      LUA
-    rescue
-      if l.is?(:string, -1)
-        puts l.to_string(-1)
-      else
-        puts "failed"
+        local execute = function()
+          sprite2 = Sprite.new()
+          sprite2:move(3, 3)
+          sprite2:draw()
+          sprite2:move(1, 2)
+          sprite2:draw()
+        end
+        execute()
+        LUA
+      rescue
+        if l.is?(:string, -1)
+          puts l.to_string(-1)
+        else
+          puts "failed"
+        end
       end
+      Luajit::LuaState.trackables.size.should eq(2)
     end
+    Luajit::LuaState.trackables.size.should eq(0)
   end
 end

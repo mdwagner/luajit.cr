@@ -27,11 +27,25 @@ module Luajit
       new(LibLuaJIT.lua_newstate(proc, Pointer(Void).null))
     end
 
+    def self.run(& : LuaState ->) : Nil
+      l = new
+      begin
+        l.open_library(:all)
+        yield l
+      ensure
+        l.close
+      end
+    end
+
     def initialize(@ptr)
     end
 
     def to_unsafe
       @ptr
+    end
+
+    def close : Nil
+      LibLuaJIT.lua_close(self)
     end
 
     def version? : Float64?
