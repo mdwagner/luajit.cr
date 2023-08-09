@@ -208,7 +208,7 @@ module Luajit
     #
     # Returns the index of the userdata.
     def new_userdata(object) : Int32
-      LuaState.trackables << Box.box(object) # TODO: untrack on finalize?
+      LuaState.trackables << Box.box(object)
       LibLuaJIT.lua_newuserdata(self, sizeof(typeof(object))).as(Pointer(typeof(object))).value = object
       size
     end
@@ -317,6 +317,31 @@ module Luajit
         LibxLuaJIT.lua_isnone(self, index)
       in .none_or_nil?
         LibxLuaJIT.lua_isnoneornil(self, index)
+      end
+    end
+
+    def type_name(lua_type : LuaType) : String
+      case lua_type
+      when LuaType::Nil
+        String.new(LibLuaJIT.lua_typename(self, LibLuaJIT::LUA_TNIL))
+      when .number?
+        String.new(LibLuaJIT.lua_typename(self, LibLuaJIT::LUA_TNUMBER))
+      when .bool?
+        String.new(LibLuaJIT.lua_typename(self, LibLuaJIT::LUA_TBOOLEAN))
+      when .string?
+        String.new(LibLuaJIT.lua_typename(self, LibLuaJIT::LUA_TSTRING))
+      when .table?
+        String.new(LibLuaJIT.lua_typename(self, LibLuaJIT::LUA_TTABLE))
+      when .function?
+        String.new(LibLuaJIT.lua_typename(self, LibLuaJIT::LUA_TFUNCTION))
+      when .userdata?
+        String.new(LibLuaJIT.lua_typename(self, LibLuaJIT::LUA_TUSERDATA))
+      when .thread?
+        String.new(LibLuaJIT.lua_typename(self, LibLuaJIT::LUA_TTHREAD))
+      when .light_userdata?
+        String.new(LibLuaJIT.lua_typename(self, LibLuaJIT::LUA_TLIGHTUSERDATA))
+      else
+        raise "Invalid LuaType"
       end
     end
 
@@ -441,6 +466,47 @@ module Luajit
 
     def new_table : Nil
       LibxLuaJIT.lua_newtable(self)
+    end
+
+    def assert_userdata_type(type : U.class, narg : Int32) : Nil forall U
+      LibLuaJIT.luaL_checkudata(self, narg, raw_metatable_name(type.name))
+    end
+
+    def assert_lua_type(type : LuaType, narg : Int32) : Nil
+      unless is?(type, narg)
+        raise_type_error(narg, type_name(type))
+      end
+    end
+
+    def raise_type_error(narg : Int32, type : U.class) : Nil forall U
+      raise_type_error(narg, type.name)
+    end
+
+    def raise_type_error(narg : Int32, type : String) : Nil
+      LibLuaJIT.luaL_typerror(self, narg, type)
+    end
+
+    def assert_nargs_lt(nargs : Int32) : Nil
+      if size < nargs
+        raise_error "not enough arguments"
+      end
+    end
+
+    def assert_nargs_gt(nargs : Int32) : Nil
+      if size > nargs
+        raise_error "too many arguments"
+      end
+    end
+
+    def assert_nargs_eq(nargs : Int32) : Nil
+      unless size == nargs
+        raise_error "unexpected number of arguments"
+      end
+    end
+
+    def assert_nargs(nargs : Int32) : Nil
+      assert_nargs_lt(nargs)
+      assert_nargs_gt(nargs)
     end
   end
 end

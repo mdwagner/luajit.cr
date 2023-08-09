@@ -109,9 +109,15 @@ describe Luajit do
       sprite2 = Sprite.new()
       sprite2:move(3, 3)
       sprite2:draw()
+      sprite2:move(1, 2)
+      sprite2:draw()
       LUA
     rescue
-      puts l.to_string(-1)
+      if l.is?(:string, -1)
+        puts l.to_string(-1)
+      else
+        puts "failed"
+      end
     end
   end
 end

@@ -8,4 +8,4 @@ authors:
 crystal: 1.8.2
 
 crystalline:
-  main: src/luajit.cr
+  main: spec/spec_helper.cr

@@ -24,8 +24,7 @@ module Luajit
     {% raise "only Class is supported" unless klass.class? %}
 
     {{lua_state}}.new_table
-    _table_index = {{lua_state}}.size
-    {{lua_state}}.push_value(_table_index)
+    {{lua_state}}.push_value(-1)
     {{lua_state}}.set_global({{klass.name.stringify}})
 
     {% for method in table_methods %}
@@ -35,16 +34,10 @@ module Luajit
         {{klass}}.{{method.name.id}}(::Luajit::LuaState.new(x))
       })
 
-      {% if anno.named_args[:name] %}
-        {{lua_state}}.set_field(_table_index, {{anno.named_args[:name]}})
-      {% else %}
-        {{lua_state}}.set_field(_table_index, {{method.name.stringify}})
-      {% end %}
+      {{lua_state}}.set_field(-2, {{anno.named_args[:name] || method.name.stringify}})
     {% end %}
 
-
     {{lua_state}}.new_metatable({{lua_state}}.raw_metatable_name({{klass}}))
-    _metatable_index = {{lua_state}}.size
 
     {% unless has_gc_meta %}
       ::Luajit::LibLuaJIT.lua_pushstring({{lua_state}}, "__gc")
@@ -56,15 +49,15 @@ module Luajit
         0
       })
 
-      ::Luajit::LibLuaJIT.lua_settable({{lua_state}}, _metatable_index)
+      ::Luajit::LibLuaJIT.lua_settable({{lua_state}}, -3)
     {% end %}
 
     {% unless has_index_meta %}
       ::Luajit::LibLuaJIT.lua_pushstring({{lua_state}}, "__index")
 
-      {{lua_state}}.push_value(_table_index)
+      {{lua_state}}.push_value(-3)
 
-      ::Luajit::LibLuaJIT.lua_settable({{lua_state}}, _metatable_index)
+      ::Luajit::LibLuaJIT.lua_settable({{lua_state}}, -3)
     {% end %}
 
     {% for method in meta_methods %}
@@ -86,7 +79,7 @@ module Luajit
         })
       {% end %}
 
-      ::Luajit::LibLuaJIT.lua_settable({{lua_state}}, _metatable_index)
+      ::Luajit::LibLuaJIT.lua_settable({{lua_state}}, -3)
     {% end %}
 
     {% end %}
