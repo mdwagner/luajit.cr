@@ -1,26 +1,62 @@
 module Luajit
-  enum LuaGC
+  # Controls the Lua Garbage Collector
+  struct LuaGC
+    @ptr : Pointer(LibLuaJIT::State)
+
+    def initialize(@ptr)
+    end
+
+    def to_unsafe
+      @ptr
+    end
+
     # Stops the garbage collector
-    Stop
+    def stop : Nil
+      LibLuaJIT.lua_gc(self, LibLuaJIT::LUA_GCSTOP, 0)
+    end
+
     # Restarts the garbage collector
-    Restart
+    def restart : Nil
+      LibLuaJIT.lua_gc(self, LibLuaJIT::LUA_GCRESTART, 0)
+    end
+
     # Performs a full garbage-collection cycle
-    Collect
+    def collect : Nil
+      LibLuaJIT.lua_gc(self, LibLuaJIT::LUA_GCCOLLECT, 0)
+    end
+
     # Returns the current amount of memory (in KBs) in use by Lua
-    Count
+    def count : Int32
+      LibLuaJIT.lua_gc(self, LibLuaJIT::LUA_GCCOUNT, 0)
+    end
+
     # Returns the remainder of dividing the current amount of bytes of memory in use by Lua by 1024
-    CountBytes
+    def count_bytes : Int32
+      LibLuaJIT.lua_gc(self, LibLuaJIT::LUA_GCCOUNTB, 0)
+    end
+
     # Performs an incremental step of garbage collection
     #
-    # The step "size" is controlled by data (larger values mean more steps) in a non-specified way. If you want to control the step size you must experimentally tune the value of data. The function returns 1 if the step finished a garbage-collection cycle.
-    Step
+    # To control the step size, you must experimentally tune
+    # the value of `size`.
+    #
+    # Returns 1 if the step finished a garbage-collection cycle.
+    def step(size : Int32) : Int32
+      LibLuaJIT.lua_gc(self, LibLuaJIT::LUA_GCSTEP, size)
+    end
+
     # Sets data as the new value for the pause of the collector
     #
-    # The function returns the previous value of the pause.
-    SetPause
+    # Returns the previous value of the pause.
+    def set_pause(data : Int32) : Int32
+      LibLuaJIT.lua_gc(self, LibLuaJIT::LUA_GCSETPAUSE, data)
+    end
+
     # Sets data as the new value for the step multiplier of the collector
     #
-    # The function returns the previous value of the step multiplier.
-    SetStepMultiplier
+    # Returns the previous value of the step multiplier.
+    def set_step_multiplier(data : Int32) : Int32
+      LibLuaJIT.lua_gc(self, LibLuaJIT::LUA_GCSETSTEPMUL, data)
+    end
   end
 end

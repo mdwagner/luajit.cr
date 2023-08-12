@@ -309,6 +309,10 @@ module Luajit
       LibLuaJIT.lua_getfield(l, LibLuaJIT::LUA_GLOBALSINDEX, s)
     end
 
+    def lua_upvalueindex(index : Int32) : Int32
+      LibLuaJIT::LUA_GLOBALSINDEX - 1
+    end
+
     def lua_register(l, n : String, f : LibLuaJIT::CFunction) : Nil
       lua_pushcfunction(l, f)
       lua_setglobal(l, n)

@@ -5,16 +5,17 @@ module Luajit
     alias Function = LuaState -> Int32
     alias Loader = LuaState, Pointer(UInt64) -> String?
 
+    # Collection of pointers to track within Crystal to avoid GC
     class_getter trackables = [] of Pointer(Void)
 
     @ptr : Pointer(LibLuaJIT::State)
 
     # Allocates from default LuaJIT allocator
-    def self.default : LuaState
+    def self.lua_new : LuaState
       new(LibLuaJIT.luaL_newstate)
     end
 
-    # Allocates from Crystal GC
+    # Allocates from Crystal GC (recommended)
     def self.new : LuaState
       proc = Alloc.new do |_, ptr, osize, nsize|
         if nsize == 0
@@ -24,16 +25,42 @@ module Luajit
           GC.realloc(ptr, nsize)
         end
       end
-      new(LibLuaJIT.lua_newstate(proc, Pointer(Void).null))
+      new(LibLuaJIT.lua_newstate(proc, nil))
     end
 
-    def self.run(& : LuaState ->) : Nil
-      l = new
+    def self.run(&block : LuaState ->) : Nil
+      state = new
       begin
-        l.open_library(:all)
-        yield l
+        state.open_library(:all)
+        status = state.c_pcall do |s|
+          block.call(s)
+          0
+        end
+        case status
+        when .ok?, .yield?
+        when .runtime_error?
+          raise LuaRuntimeError.new
+        when .memory_error?
+          raise LuaMemoryError.new
+        when .handler_error?
+          raise LuaHandlerError.new
+        else
+          raise LuaError.new(state)
+        end
       ensure
-        l.close
+        state.close
+      end
+    end
+
+    # Adds a pointer to be tracked
+    def self.add_trackable(ptr : Pointer(Void)) : Nil
+      trackables << ptr
+    end
+
+    # Removes a reference from being tracked
+    def self.remove_trackable(ref : Reference) : Nil
+      trackables.reject! do |ptr|
+        ptr.address == ref.object_id
       end
     end
 
@@ -44,267 +71,256 @@ module Luajit
       @ptr
     end
 
+    # Similar to `lua_close`
     def close : Nil
       LibLuaJIT.lua_close(self)
     end
 
-    def version? : Float64?
-      if ptr = LibLuaJIT.lua_version(self)
-        ptr.value
-      end
-    end
-
+    # Returns the version number of this core
     def version : Float64
-      version?.not_nil!
+      LibLuaJIT.lua_version(self).value
     end
 
+    # Similar to `luaopen_*`
+    #
+    # `LuaLibrary::All` is similar to `luaL_openlibs`
     def open_library(type : LuaLibrary) : Nil
+      {% begin %}
+      {% types = LuaLibrary.constants.map(&.underscore).reject { |x| x == "all" } %}
       case type
-      in .base?
-        LibLuaJIT.luaopen_base(self)
-      in .table?
-        LibLuaJIT.luaopen_table(self)
-      in .io?
-        LibLuaJIT.luaopen_io(self)
-      in .os?
-        LibLuaJIT.luaopen_os(self)
-      in .string?
-        LibLuaJIT.luaopen_string(self)
-      in .math?
-        LibLuaJIT.luaopen_math(self)
-      in .debug?
-        LibLuaJIT.luaopen_debug(self)
-      in .package?
-        LibLuaJIT.luaopen_package(self)
-      in .bit?
-        LibLuaJIT.luaopen_bit(self)
-      in .ffi?
-        LibLuaJIT.luaopen_ffi(self)
-      in .jit?
-        LibLuaJIT.luaopen_jit(self)
+      {% for t in types %}
+      in .{{t.id}}?
+        LibLuaJIT.luaopen_{{t.id}}(self)
+      {% end %}
       in .all?
         LibLuaJIT.luaL_openlibs(self)
       end
+      {% end %}
     end
 
-    def gc(what : LuaGC, data : Int32) : Int32
-      case what
-      in .stop?
-        LibLuaJIT.lua_gc(self, LibLuaJIT::LUA_GCSTOP, data)
-      in .restart?
-        LibLuaJIT.lua_gc(self, LibLuaJIT::LUA_GCRESTART, data)
-      in .collect?
-        LibLuaJIT.lua_gc(self, LibLuaJIT::LUA_GCCOLLECT, data)
-      in .count?
-        LibLuaJIT.lua_gc(self, LibLuaJIT::LUA_GCCOUNT, data)
-      in .count_bytes?
-        LibLuaJIT.lua_gc(self, LibLuaJIT::LUA_GCCOUNTB, data)
-      in .step?
-        LibLuaJIT.lua_gc(self, LibLuaJIT::LUA_GCSTEP, data)
-      in .set_pause?
-        LibLuaJIT.lua_gc(self, LibLuaJIT::LUA_GCSETPAUSE, data)
-      in .set_step_multiplier?
-        LibLuaJIT.lua_gc(self, LibLuaJIT::LUA_GCSETSTEPMUL, data)
-      end
+    # Similar to `lua_gc`
+    def gc : LuaGC
+      LuaGC.new(self)
     end
 
+    # Similar to `lua_atpanic`
     def at_panic(&cb : CFunction) : CFunction
       LibLuaJIT.lua_atpanic(self, cb)
     end
 
-    def call(num_args : Int32, num_results : Int32) : Nil
-      LibLuaJIT.lua_call(self, num_args, num_results)
-    end
-
+    # Similar to `lua_concat`
     def concat(n : Int32) : Nil
       LibLuaJIT.lua_concat(self, n)
     end
 
-    def c_pcall(&block : Function) : Int32
+    # Similar to `lua_gettop`
+    def size : Int32
+      LibLuaJIT.lua_gettop(self)
+    end
+
+    # Similar to `lua_pop`
+    def pop(n : Int32) : Nil
+      LibxLuaJIT.lua_pop(self, n)
+    end
+
+    # Similar to `lua_setfield`
+    def set_field(index : Int32, k : String) : Nil
+      LibLuaJIT.lua_setfield(self, index, k)
+    end
+
+    # Similar to `lua_setglobal`
+    def set_global(name : String) : Nil
+      LibxLuaJIT.lua_setglobal(self, name)
+    end
+
+    # Similar to `lua_setmetatable`
+    def set_metatable(index : Int32) : Int32
+      LibLuaJIT.lua_setmetatable(self, index)
+    end
+
+    # Similar to `lua_settable`
+    def set_table(index : Int32) : Nil
+      LibLuaJIT.lua_settable(self, index)
+    end
+
+    # Similar to `lua_getfield`
+    def get_field(index : Int32, name : String)
+      LibLuaJIT.lua_getfield(self, index, name)
+    end
+
+    # Similar to `lua_getglobal`
+    def get_global(name : String)
+      LibxLuaJIT.lua_getglobal(self, name)
+    end
+
+    # Similar to `lua_createtable`
+    def create_table(narr : Int32, nrec : Int32) : Nil
+      LibLuaJIT.lua_createtable(self, narr, nrec)
+    end
+
+    # Similar to `luaL_newmetatable`
+    def new_metatable(tname : String) : Int32
+      LibLuaJIT.luaL_newmetatable(self, tname)
+    end
+
+    # Similar to `lua_toboolean`
+    def to_boolean(index : Int32) : Bool
+      LibLuaJIT.lua_toboolean(self, index) == true.to_unsafe
+    end
+
+    # Same as `LuaState#to_i32`
+    def to_i(index : Int32) : Int32
+      to_i32(index)
+    end
+
+    # Returns `LuaState#to_i64` converted to `Int32`
+    def to_i32(index : Int32) : Int32
+      to_i64(index).to_i
+    end
+
+    # Similar to `lua_tointeger`
+    def to_i64(index : Int32) : Int64
+      LibLuaJIT.lua_tointeger(self, index)
+    end
+
+    # Similar to `lua_tolstring`
+    def to_string(index : Int32, size : UInt64) : String
+      String.new(LibLuaJIT.lua_tolstring(self, index, pointerof(size)))
+    end
+
+    # Similar to `lua_tostring`
+    def to_string(index : Int32) : String
+      LibxLuaJIT.lua_tostring(self, index)
+    end
+
+    # Same as `LuaState#to_f64`
+    def to_f(index : Int32) : Float64
+      to_f64(index)
+    end
+
+    # Returns `LuaState#to_f64` converted to `Float32`
+    def to_f32(index : Int32) : Float32
+      to_f64(index).to_f32
+    end
+
+    # Similar to `lua_tonumber`
+    def to_f64(index : Int32) : Float64
+      LibLuaJIT.lua_tonumber(self, index)
+    end
+
+    # Similar to `lua_touserdata`
+    def to_userdata(index : Int32) : Pointer(Void)
+      LibLuaJIT.lua_touserdata(self, index)
+    end
+
+    # Similar to `LuaState#to_userdata`, but auto casts pointer to type
+    def to_userdata(index : Int32, _type : U.class) : Pointer(U) forall U
+      to_userdata(index).as(Pointer(U))
+    end
+
+    # Similar to `lua_pushboolean`
+    def push(x : Bool) : self
+      LibLuaJIT.lua_pushboolean(self, x)
+      self
+    end
+
+    # Similar to `lua_pushinteger`
+    def push(x : Int64) : self
+      LibLuaJIT.lua_pushinteger(self, x)
+      self
+    end
+
+    # Same as `LuaState#push`, but converts _x_ value to `Int64` first
+    def push(x : Int32) : self
+      push(x.to_i64)
+    end
+
+    # Similar to `lua_pushlightuserdata`
+    def push(x : Pointer(Void)) : self
+      LibLuaJIT.lua_pushlightuserdata(self, x)
+      self
+    end
+
+    # Similar to `lua_pushnil`
+    def push(_x : Nil) : self
+      LibLuaJIT.lua_pushnil(self)
+      self
+    end
+
+    # Similar to `lua_pushnumber`
+    def push(x : Float64) : self
+      LibLuaJIT.lua_pushnumber(self, x)
+      self
+    end
+
+    # Similar to `lua_pushstring`
+    def push(x : String) : self
+      LibLuaJIT.lua_pushstring(self, x)
+      self
+    end
+
+    # Same as `LuaState#push`, but converts _x_ value to `String` first
+    def push(x : Char) : self
+      push(x.to_s)
+    end
+
+    # Same as `LuaState#push`, but converts _x_ value to `String` first
+    def push(x : Symbol) : self
+      push(x.to_s)
+    end
+
+    # Creates an index-based Lua table from _x_
+    def push(x : Array) : self
+      create_table(x.size, 0)
+      x.each_with_index do |item, index|
+        push(index + 1)
+        push(item)
+        set_table(-3)
+      end
+      self
+    end
+
+    # Creates an key-value based Lua table from _x_
+    def push(x : Hash) : self
+      create_table(0, x.size)
+      x.each do |key, value|
+        push(key)
+        push(value)
+        set_table(-3)
+      end
+      self
+    end
+
+    # Similar to `lua_pushcclosure`
+    def push(&block : Function) : self
+      box = Box(typeof(block)).box(block)
+      LuaState.add_trackable(box)
+      proc = CFunction.new do |l|
+        state = LuaState.new(l)
+        ud = state.to_userdata(state.upvalue_at(1))
+        Box(typeof(block)).unbox(ud).call(state)
+      end
+      LibLuaJIT.lua_pushcclosure(self, proc, 1)
+      self
+    end
+
+    # Similar to `lua_pcall`
+    def pcall(nargs : Int32, nresults : Int32, errfunc : Int32 = 0) : Int32
+      LibLuaJIT.lua_pcall(self, nargs, nresults, errfunc)
+    end
+
+    # Similar to `lua_cpcall`
+    def c_pcall(&block : Function) : LuaStatus
       box = Box(typeof(block)).box(block)
       proc = CFunction.new do |l|
         state = LuaState.new(l)
         ud = state.to_userdata(-1)
         Box(typeof(block)).unbox(ud).call(state)
       end
-      LibLuaJIT.lua_cpcall(self, proc, box)
+      LuaStatus.new(LibLuaJIT.lua_cpcall(self, proc, box))
     end
 
-    def size : Int32
-      LibLuaJIT.lua_gettop(self)
-    end
-
-    def pop(n : Int32) : Nil
-      LibxLuaJIT.lua_pop(self, n)
-    end
-
-    def set_field(index : Int32, k : String) : Nil
-      LibLuaJIT.lua_setfield(self, index, k)
-    end
-
-    def set_global(name : String) : Nil
-      LibxLuaJIT.lua_setglobal(self, name)
-    end
-
-    def set_metatable(index : Int32) : Int32
-      LibLuaJIT.lua_setmetatable(self, index)
-    end
-
-    def set_table(index : Int32) : Nil
-      LibLuaJIT.lua_settable(self, index)
-    end
-
-    def get_field(index : Int32, name : String)
-      LibLuaJIT.lua_getfield(self, index, name)
-    end
-
-    def get_global(name : String)
-      LibxLuaJIT.lua_getglobal(self, name)
-    end
-
-    # Creates a new table to be used as a metatable for userdata,
-    # and adds it to the registry with key `tname`.
-    #
-    # 0 - Already exists in registry
-    # 1 - Added to registry
-    def new_metatable(tname : String) : Int32
-      LibLuaJIT.luaL_newmetatable(self, tname)
-    end
-
-    def attach_metatable(object, index : Int32) : Nil
-      name = metatable_name(object)
-      LibxLuaJIT.luaL_getmetatable(self, name)
-      set_metatable(index)
-    end
-
-    def metatable_name(object) : String
-      raw_metatable_name(typeof(object))
-    end
-
-    def raw_metatable_name(raw) : String
-      "luajit_cr__#{raw}"
-    end
-
-    def to_boolean(index : Int32) : Bool
-      LibLuaJIT.lua_toboolean(self, index) == true.to_unsafe
-    end
-
-    def to_i64(index : Int32) : Int64
-      LibLuaJIT.lua_tointeger(self, index)
-    end
-
-    def to_string(index : Int32, size : UInt64) : String
-      String.new(LibLuaJIT.lua_tolstring(self, index, pointerof(size)))
-    end
-
-    def to_string(index : Int32) : String
-      LibxLuaJIT.lua_tostring(self, index)
-    end
-
-    def to_f(index : Int32) : Float64
-      LibLuaJIT.lua_tonumber(self, index)
-    end
-
-    def to_pointer(index : Int32) : Pointer(Void)
-      LibLuaJIT.lua_topointer(self, index)
-    end
-
-    def to_userdata(index : Int32) : Pointer(Void)
-      LibLuaJIT.lua_touserdata(self, index)
-    end
-
-    def to_userdata(_type : U.class, index : Int32) : Pointer(U) forall U
-      to_userdata(index).as(Pointer(U))
-    end
-
-    # Creates a new userdata from `object` in Lua, adding it to the stack,
-    # and tracks it within Crystal to avoid accidental GC.
-    #
-    # Returns the index of the userdata.
-    def new_userdata(object) : Int32
-      LuaState.trackables << Box.box(object)
-      LibLuaJIT.lua_newuserdata(self, sizeof(typeof(object))).as(Pointer(typeof(object))).value = object
-      size
-    end
-
-    def remove_trackable(object_id) : Nil
-      LuaState.trackables.reject! do |ptr|
-        ptr.address == object_id
-      end
-    end
-
-    def <<(b : Bool) : self
-      LibLuaJIT.lua_pushboolean(self, b)
-      self
-    end
-
-    def <<(n : Int64) : self
-      LibLuaJIT.lua_pushinteger(self, n)
-      self
-    end
-
-    def <<(n : Int32) : self
-      self << n.to_i64
-    end
-
-    def <<(ptr : Pointer(Void)) : self
-      LibLuaJIT.lua_pushlightuserdata(self, ptr)
-      self
-    end
-
-    def <<(_x : Nil) : self
-      LibLuaJIT.lua_pushnil(self)
-      self
-    end
-
-    def <<(n : Float64) : self
-      LibLuaJIT.lua_pushnumber(self, n)
-      self
-    end
-
-    def <<(str : String) : self
-      LibLuaJIT.lua_pushstring(self, str)
-      self
-    end
-
-    def <<(chr : Char) : self
-      self << chr.to_s
-    end
-
-    def <<(sym : Symbol) : self
-      self << sym.to_s
-    end
-
-    def <<(arr : Array) : self
-      LibLuaJIT.lua_createtable(self, arr.size, 0)
-      arr.each_with_index do |item, index|
-        self << index << item
-        LibLuaJIT.lua_settable(self, -3)
-      end
-      self
-    end
-
-    def <<(hash : Hash) : self
-      LibLuaJIT.lua_createtable(self, 0, hash.size)
-      hash.each do |key, value|
-        self << key << value
-        LibLuaJIT.lua_settable(self, -3)
-      end
-      self
-    end
-
-    def push_function(&block : Function) : Nil
-      box = Box(typeof(block)).box(block)
-      proc = CFunction.new do |l|
-        state = LuaState.new(l)
-        ud = state.to_userdata(state.upvalue_at(1))
-        Box(typeof(block)).unbox(ud).call(state)
-      end
-      LuaState.trackables << box
-      self << box
-      LibLuaJIT.lua_pushcclosure(self, proc, 1)
-    end
-
+    # Similar to `lua_is*`
     def is?(lua_type : LuaType, index : Int32) : Bool
       case lua_type
       in .bool?
@@ -334,6 +350,9 @@ module Luajit
       end
     end
 
+    # Similar to `lua_typename`
+    #
+    # Raises `InvalidLuaTypeException`
     def type_name(lua_type : LuaType) : String
       case lua_type
       when LuaType::Nil
@@ -355,172 +374,202 @@ module Luajit
       when .light_userdata?
         String.new(LibLuaJIT.lua_typename(self, LibLuaJIT::LUA_TLIGHTUSERDATA))
       else
-        raise "Invalid LuaType"
+        raise InvalidLuaTypeException.new
       end
     end
 
+    # Similar to `lua_lessthan`
     def less_than(index1 : Int32, index2 : Int32) : Bool
       LibLuaJIT.lua_lessthan(self, index1, index2) == true.to_unsafe
     end
 
+    # Similar to `lua_insert`
     def insert(index : Int32) : Nil
       LibLuaJIT.lua_insert(self, index)
     end
 
+    # Similar to `lua_remove`
     def remove(index : Int32) : Nil
       LibLuaJIT.lua_remove(self, index)
     end
 
+    # Similar to `lua_replace`
     def replace(index : Int32) : Nil
       LibLuaJIT.lua_replace(self, index)
     end
 
+    # Similar to `lua_equal`
     def eq(index1 : Int32, index2 : Int32) : Bool
       LibLuaJIT.lua_equal(self, index1, index2) == true.to_unsafe
     end
 
+    # Similar to `lua_next`
     def next(index : Int32) : Bool
       LibLuaJIT.lua_next(self, index) == true.to_unsafe
     end
 
+    # Similar to `lua_objlen`
     def size_at(index : Int32) : UInt64
       LibLuaJIT.lua_objlen(self, index)
     end
 
+    # Similar to `lua_pushvalue`
     def push_value(index : Int32) : Nil
       LibLuaJIT.lua_pushvalue(self, index)
     end
 
+    # Similar to `lua_rawequal`
     def raw_eq(index1 : Int32, index2 : Int32) : Bool
       LibLuaJIT.lua_rawequal(self, index1, index2) == true.to_unsafe
     end
 
+    # Similar to `lua_rawget`
     def raw_get(index : Int32) : Nil
       LibLuaJIT.lua_rawget(self, index)
     end
 
+    # Similar to `lua_rawgeti`
     def raw_geti(index : Int32, n : Int32) : Nil
       LibLuaJIT.lua_rawgeti(self, index, n)
     end
 
+    # Similar to `lua_rawset`
     def raw_set(index : Int32) : Nil
       LibLuaJIT.lua_rawset(self, index)
     end
 
+    # Similar to `lua_rawseti`
     def raw_seti(index : Int32, n : Int32) : Nil
       LibLuaJIT.lua_rawseti(self, index, n)
     end
 
+    # Similar to `lua_upvalueindex`
     def upvalue_at(index : Int32) : Int32
-      LibLuaJIT::LUA_GLOBALSINDEX - index
+      LibxLuaJIT.lua_upvalueindex(index)
     end
 
+    # Similar to `lua_error`
     def raise_error
       LibLuaJIT.lua_error(self)
     end
 
+    # Similar to `luaL_error`
     def raise_error(msg : String)
       LibLuaJIT.luaL_error(self, msg)
     end
 
-    def status
-      case result = LibLuaJIT.lua_status(self)
-      when LibLuaJIT::LUA_OK
-        LuaStatus::Ok
-      when LibLuaJIT::LUA_YIELD
-        LuaStatus::Yield
-      else
-        LuaStatus.new(result)
-      end
+    # Similar to `lua_status`
+    def status : LuaStatus
+      LuaStatus.new(LibLuaJIT.lua_status(self))
     end
 
-    def load(chunk_name : String, &block : Loader) : Int32
+    # Similar to `luaL_callmeta`
+    def call_metamethod(object_index : Int32, method_name : String) : Bool
+      LibLuaJIT.luaL_callmeta(self, object_index, method_name) == true.to_unsafe
+    end
+
+    # Similar to `lua_newtable`
+    def new_table : Nil
+      LibxLuaJIT.lua_newtable(self)
+    end
+
+    # Similar to `lua_load`
+    def load(chunk_name : String, &block : Loader) : LuaStatus
       box = Box(typeof(cb)).box(block)
       proc = LibLuaJIT::Reader.new do |l, data, size|
         state = LuaState.new(l)
         Box(typeof(cb)).unbox(data).call(state, size)
       end
-      case LibLuaJIT.lua_load(self, proc, box, chunk_name)
-      when LibLuaJIT::LUA_ERRSYNTAX
-        raise "Lua syntax error"
-      when LibLuaJIT::LUA_ERRMEM
-        raise "Lua memory allocation error"
+      result = LuaStatus.new(LibLuaJIT.lua_load(self, proc, box, chunk_name))
+      case result
+      when .syntax_error?
+        raise LuaSyntaxError.new
+      when .memory_error?
+        raise LuaMemoryError.new
       end
+      result
     end
 
+    # Similar to `luaL_dostring`
     def execute(code : String) : Nil
-      case LibxLuaJIT.luaL_dostring(self, code)
-      when LibLuaJIT::LUA_ERRRUN
-        raise "Lua runtime error"
-      when LibLuaJIT::LUA_ERRMEM
-        raise "Lua memory allocation error"
-      when LibLuaJIT::LUA_ERRERR
-        raise "Error while running error handler function"
+      case LuaStatus.new(LibxLuaJIT.luaL_dostring(self, code))
+      when .runtime_error?
+        raise LuaRuntimeError.new
+      when .memory_error?
+        raise LuaMemoryError.new
+      when .handler_error?
+        raise LuaHandlerError.new
       end
     end
 
+    # Similar to `luaL_dofile`
     def execute(path : Path) : Nil
-      case LibxLuaJIT.luaL_dofile(self, path)
-      when LibLuaJIT::LUA_ERRRUN
-        raise "Lua runtime error"
-      when LibLuaJIT::LUA_ERRMEM
-        raise "Lua memory allocation error"
-      when LibLuaJIT::LUA_ERRERR
-        raise "Error while running error handler function"
+      case LuaStatus.new(LibxLuaJIT.luaL_dofile(self, path))
+      when .runtime_error?
+        raise LuaRuntimeError.new
+      when .memory_error?
+        raise LuaMemoryError.new
+      when .handler_error?
+        raise LuaHandlerError.new
       end
     end
 
+    # Similar to `luaL_argerror`
     def raise_function_arg(position : Int32, msg : String)
       LibLuaJIT.luaL_argerror(self, position, msg)
     end
 
-    def call_metamethod(object_index : Int32, method_name : String) : Bool
-      LibLuaJIT.luaL_callmeta(self, object_index, method_name) == true.to_unsafe
-    end
-
-    def new_table : Nil
-      LibxLuaJIT.lua_newtable(self)
-    end
-
-    def assert_userdata_type(type : U.class, narg : Int32) : Nil forall U
-      LibLuaJIT.luaL_checkudata(self, narg, raw_metatable_name(type.name))
-    end
-
-    def assert_lua_type(type : LuaType, narg : Int32) : Nil
-      unless is?(type, narg)
-        raise_type_error(narg, type_name(type))
-      end
-    end
-
-    def raise_type_error(narg : Int32, type : U.class) : Nil forall U
-      raise_type_error(narg, type.name)
-    end
-
+    # Similar to `luaL_typerror`
     def raise_type_error(narg : Int32, type : String) : Nil
       LibLuaJIT.luaL_typerror(self, narg, type)
     end
 
-    def assert_nargs_lt(nargs : Int32) : Nil
-      if size < nargs
-        raise_error "not enough arguments"
+    def assert_argsize_less_than(num_args : Int32, msg : String = "not enough arguments") : Nil
+      if size < num_args
+        raise_error(msg)
       end
     end
 
-    def assert_nargs_gt(nargs : Int32) : Nil
-      if size > nargs
-        raise_error "too many arguments"
+    def assert_argsize_greater_than(num_args : Int32, msg : String = "too many arguments") : Nil
+      if size > num_args
+        raise_error(msg)
       end
     end
 
-    def assert_nargs_eq(nargs : Int32) : Nil
-      unless size == nargs
-        raise_error "unexpected number of arguments"
+    def assert_argsize_equal(num_args : Int32, msg : String = "unexpected number of arguments") : Nil
+      unless size == num_args
+        raise_error(msg)
       end
     end
 
-    def assert_nargs(nargs : Int32) : Nil
-      assert_nargs_lt(nargs)
-      assert_nargs_gt(nargs)
+    def assert_lua_type(type : LuaType, arg_pos : Int32) : Nil
+      unless is?(type, arg_pos)
+        raise_type_error(narg, type_name(type))
+      end
+    end
+
+    def attach_metatable(object, index : Int32) : Nil
+      name = metatable_name(object)
+      LibxLuaJIT.luaL_getmetatable(self, name)
+      set_metatable(index)
+    end
+
+    def metatable_name(object) : String
+      raw_metatable_name(typeof(object))
+    end
+
+    def raw_metatable_name(raw) : String
+      "luajit_cr__#{raw}"
+    end
+
+    # Creates a new userdata from `object` in Lua, adding it to the stack,
+    # and tracks it within Crystal to avoid accidental GC.
+    #
+    # Returns the index of the userdata.
+    def new_userdata(object) : Int32
+      LuaState.add_trackable(Box.box(object))
+      LibLuaJIT.lua_newuserdata(self, sizeof(typeof(object))).as(Pointer(typeof(object))).value = object
+      size
     end
   end
 end
