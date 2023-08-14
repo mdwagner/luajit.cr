@@ -26,13 +26,10 @@ module Luajit
   class LuaError < Exception
     def initialize(state : LuaState)
       msg = "Unknown error"
-      if state.is?(:string, -1)
+      if state.is_string?(-1)
         msg = state.to_string(-1)
       end
       super(msg)
     end
-  end
-
-  class InvalidLuaTypeException < Exception
   end
 end

@@ -1,5 +1,5 @@
 module Luajit
-  @[Link(ldflags: "`pkg-config --cflags --libs luajit`")]
+  @[Link(ldflags: "`pkg-config --libs luajit`")]
   lib LibLuaJIT
     LUA_MULTRET        =      -1
     LUA_REGISTRYINDEX  = -10_000

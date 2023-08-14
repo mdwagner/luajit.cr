@@ -1,87 +1,50 @@
 require "./luajit/version"
+require "./luajit/trackable"
 require "./luajit/*"
 
 module Luajit
-  macro bind_class(lua_state, type)
-    {% begin %}
-    {%
-     klass = type.resolve
-     _static_methods = klass.class.methods
-     _anno_methods = _static_methods.select(&.annotation(Luajit::Function))
-     meta_methods = _anno_methods.select do |m|
-       args = m.annotation(Luajit::Function).named_args
-       !args[:name].empty? && args[:meta]
-     end
-     table_methods = _anno_methods.reject(&.annotation(Luajit::Function).named_args[:meta])
-     has_gc_meta = meta_methods.any? do |m|
-       m.annotation(Luajit::Function).named_args[:name] == "gc"
-     end
-     has_index_meta = meta_methods.any? do |m|
-       m.annotation(Luajit::Function).named_args[:name] == "index"
-     end
-     %}
+  alias Alloc = LibLuaJIT::Alloc
 
-    {% raise "only Class is supported" unless klass.class? %}
+  # Allocates from default LuaJIT allocator
+  def self.new_lua_state : LuaState
+    LuaState.new(LibLuaJIT.luaL_newstate)
+  end
 
-    {{lua_state}}.new_table
-    {{lua_state}}.push_value(-1)
-    {{lua_state}}.set_global({{klass.name.stringify}})
+  # Allocates from Crystal GC (recommended)
+  def self.new_state : LuaState
+    proc = Alloc.new do |_, ptr, osize, nsize|
+      if nsize == 0
+        GC.free(ptr)
+        Pointer(Void).null
+      else
+        GC.realloc(ptr, nsize)
+      end
+    end
+    LuaState.new(LibLuaJIT.lua_newstate(proc, nil))
+  end
 
-    {% for method in table_methods %}
-      {% anno = method.annotation(Luajit::Function) %}
-
-      ::Luajit::LibxLuaJIT.lua_pushcfunction({{lua_state}}, ->(x : ::Luajit::LibLuaJIT::State*) : Int32 {
-        {{klass}}.{{method.name.id}}(::Luajit::LuaState.new(x))
-      })
-
-      {{lua_state}}.set_field(-2, {{anno.named_args[:name] || method.name.stringify}})
-    {% end %}
-
-    {{lua_state}}.new_metatable({{lua_state}}.raw_metatable_name({{klass}}))
-
-    {% unless has_gc_meta %}
-      ::Luajit::LibLuaJIT.lua_pushstring({{lua_state}}, "__gc")
-
-      ::Luajit::LibxLuaJIT.lua_pushcfunction({{lua_state}}, ->(x : ::Luajit::LibLuaJIT::State*) : Int32 {
-        _state = ::Luajit::LuaState.new(x)
-        _instance = _state.to_userdata({{klass}}, -1).value
-        _state.remove_trackable(_instance.object_id)
+  def self.run(&block : LuaState ->) : Nil
+    state = new_state
+    begin
+      state.open_library(:all)
+      status = state.c_pcall do |s|
+        block.call(s)
         0
-      })
-
-      ::Luajit::LibLuaJIT.lua_settable({{lua_state}}, -3)
-    {% end %}
-
-    {% unless has_index_meta %}
-      ::Luajit::LibLuaJIT.lua_pushstring({{lua_state}}, "__index")
-
-      {{lua_state}}.push_value(-3)
-
-      ::Luajit::LibLuaJIT.lua_settable({{lua_state}}, -3)
-    {% end %}
-
-    {% for method in meta_methods %}
-      {% anno = method.annotation(Luajit::Function) %}
-
-      ::Luajit::LibLuaJIT.lua_pushstring({{lua_state}}, "__{{anno.named_args[:name].id}}")
-
-      {% if anno.named_args[:name] == "gc" %}
-        ::Luajit::LibxLuaJIT.lua_pushcfunction({{lua_state}}, ->(x : ::Luajit::LibLuaJIT::State*) : Int32 {
-          _state = ::Luajit::LuaState.new(x)
-          _instance = _state.to_userdata({{klass}}, -1).value
-          _state.remove_trackable(_instance.object_id)
-          {{klass}}.{{method.name.id}}(_state)
-          0
-        })
-      {% else %}
-        ::Luajit::LibxLuaJIT.lua_pushcfunction({{lua_state}}, ->(x : ::Luajit::LibLuaJIT::State*) : Int32 {
-          {{klass}}.{{method.name.id}}(::Luajit::LuaState.new(x))
-        })
-      {% end %}
-
-      ::Luajit::LibLuaJIT.lua_settable({{lua_state}}, -3)
-    {% end %}
-
-    {% end %}
+      end
+      case status
+      when .ok?, .yield?
+        # pass
+      when .runtime_error?
+        raise LuaRuntimeError.new
+      when .memory_error?
+        raise LuaMemoryError.new
+      when .handler_error?
+        raise LuaHandlerError.new
+      else
+        raise LuaError.new(state)
+      end
+    ensure
+      state.close
+    end
   end
 end

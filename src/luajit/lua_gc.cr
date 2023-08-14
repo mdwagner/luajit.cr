@@ -38,7 +38,7 @@ module Luajit
     # Performs an incremental step of garbage collection
     #
     # To control the step size, you must experimentally tune
-    # the value of `size`.
+    # the value of _size_.
     #
     # Returns 1 if the step finished a garbage-collection cycle.
     def step(size : Int32) : Int32

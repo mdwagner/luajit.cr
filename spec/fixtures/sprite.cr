@@ -1,3 +1,6 @@
+#struct Blob
+#end
+
 class Sprite
   property x : Int32
   property y : Int32
@@ -7,10 +10,17 @@ class Sprite
   def self.lua_new(state : Luajit::LuaState) : Int32
     state.assert_nargs_eq(0)
 
+    #blob = Blob.new
+    #state.create_userdata(blob)
+
     sprite = new
-    index = state.new_userdata(sprite)
-    state.attach_metatable(sprite, index)
+    state.create_userdata(sprite)
     1
+
+    #sprite = new
+    #index = state.new_userdata(sprite)
+    #state.attach_metatable(sprite, index)
+    #1
   end
 
   # Sprite.move(self, <1:number>, <2:number>)
@@ -21,7 +31,9 @@ class Sprite
     state.assert_lua_type(:number, 2)
     state.assert_lua_type(:number, 3)
 
-    sprite = state.to_userdata(self, 1).value
+    sprite = state.use_userdata(self, 1)
+
+    #sprite = state.to_userdata(self, 1).value
     a = state.to_f(2)
     b = state.to_f(3)
     sprite.move(a.to_i, b.to_i)
