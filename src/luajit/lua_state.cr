@@ -4,8 +4,6 @@ module Luajit
     alias Function = LuaState -> Int32
     alias Loader = LuaState, Pointer(UInt64) -> String?
 
-    include Trackable
-
     @ptr : Pointer(LibLuaJIT::State)
 
     def self.metatable_name(name : String) : String
@@ -185,11 +183,6 @@ module Luajit
       self
     end
 
-    # Same as `LuaState#push`
-    def <<(x)
-      push(x)
-    end
-
     # Same as `LuaState#push`, but converts _x_ value to `Int64` first
     def push(x : Int32) : self
       push(x.to_i64)
@@ -254,12 +247,13 @@ module Luajit
     # Similar to `lua_pushcclosure`
     def push(&block : Function) : self
       box = Box(typeof(block)).box(block)
-      LuaState.add_trackable(box)
+      track(box)
       proc = CFunction.new do |l|
         state = LuaState.new(l)
         ud = state.to_userdata(state.upvalue_at(1))
         Box(typeof(block)).unbox(ud).call(state)
       end
+      push(box)
       LibLuaJIT.lua_pushcclosure(self, proc, 1)
       self
     end
@@ -577,6 +571,16 @@ module Luajit
 
     #######################################################
 
+    # Same as `Luajit.add_trackable`
+    def track(ptr : Pointer(Void)) : Nil
+      Luajit.add_trackable(ptr)
+    end
+
+    # Same as `Luajit.remove_trackable`
+    def untrack(ref : Reference) : Nil
+      Luajit.remove_trackable(ref)
+    end
+
     def create_userdata(value, name : String) : Nil
       # create userdata pointer
       ud_ptr = LibLuaJIT.lua_newuserdata(self, sizeof(typeof(value)))
@@ -593,10 +597,7 @@ module Luajit
     end
 
     def create_userdata(ref : Reference, name : String) : Nil
-      # store ref in box
-      box = Box.box(ref)
-      # add box to trackables
-      LuaState.add_trackable(box)
+      track(Box.box(ref))
       # create userdata pointer
       ud_ptr = LibLuaJIT.lua_newuserdata(self, sizeof(typeof(ref)))
       # assign ref to userdata pointer
@@ -609,6 +610,10 @@ module Luajit
       LibxLuaJIT.luaL_getmetatable(self, meta_name)
       # set metatable to userdata
       set_metatable(ud_index)
+    end
+
+    def destroy_userdata(ref : Reference) : Nil
+      untrack(ref)
     end
 
     def get_userdata(_type : U.class, index : Int32) : U forall U
