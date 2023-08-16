@@ -3,6 +3,12 @@ module Luajit
     alias CFunction = LibLuaJIT::CFunction
     alias Function = LuaState -> Int32
     alias Loader = LuaState, Pointer(UInt64) -> String?
+    alias Unloader = LuaState, Pointer(Void), UInt64 -> Int32
+
+    enum ThreadStatus
+      Main
+      Coroutine
+    end
 
     @ptr : Pointer(LibLuaJIT::State)
 
@@ -66,6 +72,11 @@ module Luajit
       LibLuaJIT.lua_gettop(self)
     end
 
+    # Similar to `lua_settop`
+    def set_top(index : Int32) : Nil
+      LibLuaJIT.lua_settop(self, index)
+    end
+
     # Similar to `lua_pop`
     def pop(n : Int32) : Nil
       LibxLuaJIT.lua_pop(self, n)
@@ -96,6 +107,11 @@ module Luajit
       LibLuaJIT.lua_getmetatable(self, index)
     end
 
+    # Similar to `luaL_getmetatable`
+    def get_metatable(tname : String) : Nil
+      LibLuaJIT.luaL_getmetatable(self, tname)
+    end
+
     # Similar to `lua_setmetatable`
     def set_metatable(index : Int32) : Int32
       LibLuaJIT.lua_setmetatable(self, index)
@@ -119,6 +135,11 @@ module Luajit
     # Similar to `luaL_newmetatable`
     def new_metatable(tname : String) : Int32
       LibLuaJIT.luaL_newmetatable(self, tname)
+    end
+
+    # Similar to `luaL_getmetafield`
+    def get_metafield(obj : Int32, e : String) : Int32
+      LibLuaJIT.luaL_getmetafield(self, obj, e)
     end
 
     # Similar to `lua_toboolean`
@@ -169,6 +190,21 @@ module Luajit
     # Similar to `lua_touserdata`
     def to_userdata(index : Int32) : Pointer(Void)
       LibLuaJIT.lua_touserdata(self, index)
+    end
+
+    # Similar to `lua_tocfunction`
+    def to_c_function?(index : Int32) : CFunction?
+      proc = LibLuaJIT.lua_tocfunction(self, index)
+      if proc.pointer
+        proc
+      end
+    end
+
+    # Similar to `lua_tothread`
+    def to_thread?(index : Int32) : LuaState?
+      if ptr = LibLuaJIT.lua_tothread(self, index)
+        LuaState.new(ptr)
+      end
     end
 
     # Similar to `lua_pushboolean`
@@ -256,6 +292,20 @@ module Luajit
       push(box)
       LibLuaJIT.lua_pushcclosure(self, proc, 1)
       self
+    end
+
+    # Similar to `lua_pushthread`
+    def push_thread(thread : LuaState) : ThreadStatus
+      if LibLuaJIT.lua_pushthread(thread) == 1
+        ThreadStatus::Main
+      else
+        ThreadStatus::Coroutine
+      end
+    end
+
+    # Similar to `lua_pushvalue`
+    def push_value(index : Int32) : Nil
+      LibLuaJIT.lua_pushvalue(self, index)
     end
 
     # Similar to `lua_pcall`
@@ -365,6 +415,11 @@ module Luajit
       LibLuaJIT.lua_replace(self, index)
     end
 
+    # Similar to `lua_resume`
+    def resume(nargs : Int32) : Int32
+      LibLuaJIT.lua_resume(self, nargs)
+    end
+
     # Similar to `lua_equal`
     def eq(index1 : Int32, index2 : Int32) : Bool
       LibLuaJIT.lua_equal(self, index1, index2) == true.to_unsafe
@@ -380,11 +435,6 @@ module Luajit
       LibLuaJIT.lua_objlen(self, index)
     end
 
-    # Similar to `lua_pushvalue`
-    def push_value(index : Int32) : Nil
-      LibLuaJIT.lua_pushvalue(self, index)
-    end
-
     # Similar to `lua_rawequal`
     def raw_eq(index1 : Int32, index2 : Int32) : Bool
       LibLuaJIT.lua_rawequal(self, index1, index2) == true.to_unsafe
@@ -396,7 +446,7 @@ module Luajit
     end
 
     # Similar to `lua_rawgeti`
-    def raw_geti(index : Int32, n : Int32) : Nil
+    def raw_get_index(index : Int32, n : Int32) : Nil
       LibLuaJIT.lua_rawgeti(self, index, n)
     end
 
@@ -406,7 +456,7 @@ module Luajit
     end
 
     # Similar to `lua_rawseti`
-    def raw_seti(index : Int32, n : Int32) : Nil
+    def raw_set_index(index : Int32, n : Int32) : Nil
       LibLuaJIT.lua_rawseti(self, index, n)
     end
 
@@ -416,8 +466,13 @@ module Luajit
     end
 
     # Similar to `lua_status`
+    def status(state : LuaState) : LuaStatus
+      LuaStatus.new(LibLuaJIT.lua_status(state))
+    end
+
+    # Returns LuaStatus on self
     def status : LuaStatus
-      LuaStatus.new(LibLuaJIT.lua_status(self))
+      status(self)
     end
 
     # Similar to `luaL_callmeta`
@@ -430,12 +485,33 @@ module Luajit
       LibxLuaJIT.lua_newtable(self)
     end
 
+    # Similar to `lua_newthread`
+    def new_thread : LuaState
+      LuaState.new(LibLuaJIT.lua_newthread(self))
+    end
+
+    # Similar to `lua_register`
+    def register_global(name : String, &block : Function) : Nil
+      push(&block)
+      set_global(name)
+    end
+
+    # Similar to `lua_xmove`
+    def xmove(from : LuaState, to : LuaState, n : Int32) : Nil
+      LibLuaJIT.lua_xmove(from, to, n)
+    end
+
+    # Similar to `lua_yield`
+    def coroutine_yield(nresults : Int32) : Int32
+      LibLuaJIT.lua_yield(from, to, n)
+    end
+
     # Similar to `lua_load`
     def load(chunk_name : String, &block : Loader) : LuaStatus
-      box = Box(typeof(cb)).box(block)
+      box = Box(typeof(block)).box(block)
       proc = LibLuaJIT::Reader.new do |l, data, size|
         state = LuaState.new(l)
-        Box(typeof(cb)).unbox(data).call(state, size)
+        Box(typeof(block)).unbox(data).call(state, size)
       end
       result = LuaStatus.new(LibLuaJIT.lua_load(self, proc, box, chunk_name))
       case result
@@ -445,6 +521,16 @@ module Luajit
         raise LuaMemoryError.new
       end
       result
+    end
+
+    # Similar to `lua_dump`
+    def dump(&block : Unloader) : Int32
+      box = Box(typeof(block)).box(block)
+      proc = LibLuaJIT::Writer.new do |l, ptr, size, ud|
+        state = LuaState.new(l)
+        Box(typeof(block)).unbox(ud).call(state, ptr, size)
+      end
+      LibLuaJIT.lua_dump(self, proc, box)
     end
 
     # Similar to `luaL_dostring`
@@ -621,3 +707,5 @@ module Luajit
     end
   end
 end
+
+# TODO: continue after luaL_getmetatable
