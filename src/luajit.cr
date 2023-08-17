@@ -22,7 +22,17 @@ module Luajit
         GC.realloc(ptr, nsize)
       end
     end
-    LuaState.new(LibLuaJIT.lua_newstate(proc, nil))
+    ptr = LibLuaJIT.lua_newstate(proc, nil)
+    raise LuaMemoryError.new unless ptr
+    LuaState.new(ptr).tap do |state|
+      state.at_panic do |l|
+        s = LuaState.new(l)
+        if msg = s.is_string(-1)
+          STDERR.puts msg
+        end
+        0
+      end
+    end
   end
 
   def self.run(&block : LuaState ->) : Nil

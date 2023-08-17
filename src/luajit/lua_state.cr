@@ -109,7 +109,7 @@ module Luajit
 
     # Similar to `luaL_getmetatable`
     def get_metatable(tname : String) : Nil
-      LibLuaJIT.luaL_getmetatable(self, tname)
+      LibxLuaJIT.luaL_getmetatable(self, tname)
     end
 
     # Similar to `lua_setmetatable`
@@ -200,11 +200,21 @@ module Luajit
       end
     end
 
+    # Same as `LuaState#to_c_function?`, but will raise on nil
+    def to_c_function(index : Int32) : CFunction
+      to_c_function?(index).not_nil!
+    end
+
     # Similar to `lua_tothread`
     def to_thread?(index : Int32) : LuaState?
       if ptr = LibLuaJIT.lua_tothread(self, index)
         LuaState.new(ptr)
       end
+    end
+
+    # Same as `LuaState#to_thread?`, but will raise on nil
+    def to_thread(index : Int32) : LuaState
+      to_thread?(index).not_nil!
     end
 
     # Similar to `lua_pushboolean`
@@ -393,6 +403,13 @@ module Luajit
     # Similar to `lua_typename`
     def type_name(lua_type : LuaType) : String
       String.new(LibLuaJIT.lua_typename(self, lua_type.value))
+    end
+
+    # Similar to `luaL_typename`
+    #
+    # Can also be created from a combination of `#get_type` and `#type_name`
+    def type_name_at(index : Int32) : String
+      String.new(LibLuaJIT.luaL_typename(self, index))
     end
 
     # Similar to `lua_lessthan`
@@ -677,7 +694,7 @@ module Luajit
       # get metatable name
       meta_name = LuaState.metatable_name(name)
       # user metatable name to add to stack
-      LibxLuaJIT.luaL_getmetatable(self, meta_name)
+      get_metatable(meta_name)
       # set metatable to userdata
       set_metatable(ud_index)
     end
@@ -693,7 +710,7 @@ module Luajit
       # get metatable name
       meta_name = LuaState.metatable_name(name)
       # user metatable name to add to stack
-      LibxLuaJIT.luaL_getmetatable(self, meta_name)
+      get_metatable(meta_name)
       # set metatable to userdata
       set_metatable(ud_index)
     end
@@ -707,5 +724,3 @@ module Luajit
     end
   end
 end
-
-# TODO: continue after luaL_getmetatable
