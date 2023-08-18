@@ -27,7 +27,7 @@ module Luajit
     LuaState.new(ptr).tap do |state|
       state.at_panic do |l|
         s = LuaState.new(l)
-        if msg = s.is_string(-1)
+        if msg = s.is_string?(-1)
           STDERR.puts msg
         end
         0
@@ -46,8 +46,8 @@ module Luajit
       case status
       when .ok?, .yield?
         # pass
-      when .runtime_error?
-        raise LuaRuntimeError.new
+      #when .runtime_error?
+        #raise LuaRuntimeError.new
       when .memory_error?
         raise LuaMemoryError.new
       when .handler_error?

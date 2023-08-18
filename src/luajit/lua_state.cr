@@ -722,5 +722,36 @@ module Luajit
     def get_userdata(_type : U.class, index : Int32) : U forall U
       to_userdata(index).as(Pointer(U)).value
     end
+
+    # Creates a new global table named _name_ and returns the stack index
+    def create_global_table(name : String) : Int32
+      new_table
+      table_idx = size
+      push_value(table_idx)
+      set_global(name)
+      table_idx
+    end
+
+    def create_table_function(index : Int32, key : String, &block : Function) : Nil
+      push(&block)
+      set_field(index, key)
+    end
+
+    def create_metatable(name : String) : Int32
+      new_metatable(LuaState.metatable_name(name))
+      size
+    end
+
+    def define_table_metamethod(index : Int32, event : String, &block : Function) : Nil
+      push(event)
+      push(&block)
+      raw_set(index)
+    end
+
+    def define_metatable_property(index : Int32, event : String, &)
+      push(event)
+      yield
+      raw_set(index)
+    end
   end
 end

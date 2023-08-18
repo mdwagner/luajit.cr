@@ -1,5 +1,22 @@
 require "./spec_helper"
 
+class Sprite
+  property x : Int32
+  property y : Int32
+
+  def initialize(@x = 0, @y = 0)
+  end
+
+  def move(x : Int32, y : Int32)
+    self.x += x
+    self.y += y
+  end
+
+  def draw
+    puts "sprite(#{object_id}): x = #{x}, y = #{y}"
+  end
+end
+
 describe Luajit do
   it "works" do
     Luajit.run do |state|
@@ -15,6 +32,64 @@ describe Luajit do
 
       name = state.to_string(-1)
       name.should eq("Michael")
+    end
+  end
+
+  it "works2" do
+    Luajit.run do |state|
+      table_idx = state.create_global_table("Sprite")
+      metatable_idx = state.new_metatable("Sprite")
+
+      state.create_table_function(table_idx, "new") do |s|
+        sprite = Sprite.new
+        s.create_userdata(sprite, "Sprite")
+        1
+      end
+
+      state.create_table_function(table_idx, "move") do |s|
+        s.assert_args_eq(3)
+        s.assert_userdata?(1)
+        s.assert_number?(2)
+        s.assert_number?(3)
+
+        sprite = s.get_userdata(Sprite, 1)
+        x = s.to_f(2)
+        y = s.to_f(3)
+        sprite.move(x.to_i, y.to_i)
+        0
+      end
+
+      state.create_table_function(table_idx, "draw") do |s|
+        s.assert_args_eq(1)
+        s.assert_userdata?(1)
+
+        sprite = s.get_userdata(Sprite, 1)
+        sprite.draw
+        0
+      end
+
+      state.define_metatable_property(metatable_idx, "__gc") do
+        state.push do |s|
+          s.assert_args_eq(1)
+          s.assert_userdata?(1)
+
+          sprite = s.get_userdata(Sprite, 1)
+          s.destroy_userdata(sprite)
+          0
+        end
+      end
+
+      #state.define_metatable_property(metatable_idx, "__index") do
+        #state.push_value(table_idx)
+      #end
+
+      state.execute <<-LUA
+      local sprite = Sprite.new()
+      Sprite.move(sprite, 5, 7)
+      Sprite.draw(sprite)
+      --sprite:move(5, 7) -- TODO
+      --sprite:draw()     -- TODO
+      LUA
     end
   end
 
