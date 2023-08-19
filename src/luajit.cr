@@ -7,24 +7,8 @@ module Luajit
   # Collection of pointers to track within Crystal to avoid GC
   TRACKABLES = [] of Pointer(Void)
 
-  # Allocates from default LuaJIT allocator
-  def self.new_lua_state : LuaState
-    LuaState.new(LibLuaJIT.luaL_newstate)
-  end
-
-  # Allocates from Crystal GC (recommended)
   def self.new_state : LuaState
-    proc = Alloc.new do |_, ptr, osize, nsize|
-      if nsize == 0
-        GC.free(ptr)
-        Pointer(Void).null
-      else
-        GC.realloc(ptr, nsize)
-      end
-    end
-    ptr = LibLuaJIT.lua_newstate(proc, nil)
-    raise LuaMemoryError.new unless ptr
-    LuaState.new(ptr).tap do |state|
+    LuaState.new(LibLuaJIT.luaL_newstate).tap do |state|
       state.at_panic do |l|
         s = LuaState.new(l)
         if msg = s.is_string?(-1)
