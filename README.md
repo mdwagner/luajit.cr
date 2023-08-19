@@ -1,30 +1,48 @@
 # luajit.cr
 
-TODO: Write a description here
+LuaJIT bindings for Crystal
 
 ## Installation
 
-1. Add the dependency to your `shard.yml`:
+1. Install [LuaJIT](https://luajit.org)
+    - [Linux](https://www.google.com/search?q=install+luajit+linux)
+    - [Mac](https://www.google.com/search?q=install+luajit+mac)
+    - [Windows](https://www.google.com/search?q=install+luajit+windows)
 
-   ```yaml
-   dependencies:
-     luajit:
-       github: mdwagner/luajit.cr
-   ```
+2. Add the dependency to your `shard.yml`:
 
-2. Run `shards install`
+```yaml
+dependencies:
+  luajit:
+    github: mdwagner/luajit.cr
+    version: ~> 0.1.0
+```
+
+3. Run `shards install`
 
 ## Usage
 
 ```crystal
 require "luajit"
+
+# Basic Hello World
+Luajit.run do |lua_state|
+  lua_state.execute <<-LUA
+  print("Hello World!")
+  LUA
+end
 ```
 
-TODO: Write usage instructions here
+Checkout `spec/luajit_spec.cr` for other examples
 
 ## Development
 
-TODO: Write development instructions here
+- [x] LuaJIT bindings
+- [x] luajit.cr LuaState
+- [x] luajit.cr Builder
+- [] Comprehensive tests
+
+I have everything working and it should be usable to actually create stuff now, but haven't tested it enough. I'm hoping with more practical use it will have better test coverage.
 
 ## Contributing
 

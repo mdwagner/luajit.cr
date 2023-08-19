@@ -46,8 +46,8 @@ module Luajit
       case status
       when .ok?, .yield?
         # pass
-      #when .runtime_error?
-        #raise LuaRuntimeError.new
+      when .runtime_error?
+        raise LuaRuntimeError.new
       when .memory_error?
         raise LuaMemoryError.new
       when .handler_error?

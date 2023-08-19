@@ -1,0 +1,26 @@
+name: luajit.cr CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: "*"
+
+jobs:
+  specs:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        crystal_version: [latest]
+    runs-on: ${{ matrix.os }}
+    continue-on-error: false
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install LuaJIT
+        run: sudo apt-get install libluajit-5.1-dev
+      - uses: crystal-lang/install-crystal@v1
+        with:
+          crystal: ${{ matrix.crystal_version }}
+      - name: Run tests
+        run: crystal spec
