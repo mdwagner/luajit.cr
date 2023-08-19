@@ -2,8 +2,6 @@ require "./luajit/version"
 require "./luajit/*"
 
 module Luajit
-  alias Alloc = LibLuaJIT::Alloc
-
   # Collection of pointers to track within Crystal to avoid GC
   TRACKABLES = [] of Pointer(Void)
 
