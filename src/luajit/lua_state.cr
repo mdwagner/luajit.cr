@@ -409,7 +409,7 @@ module Luajit
     #
     # Can also be created from a combination of `#get_type` and `#type_name`
     def type_name_at(index : Int32) : String
-      String.new(LibLuaJIT.luaL_typename(self, index))
+      LibxLuaJIT.luaL_typename(self, index)
     end
 
     # Similar to `lua_lessthan`
@@ -679,11 +679,6 @@ module Luajit
       Luajit.add_trackable(ptr)
     end
 
-    # Same as `Luajit.remove_trackable`
-    def untrack(ref : Reference) : Nil
-      Luajit.remove_trackable(ref)
-    end
-
     def create_userdata(value, name : String) : Nil
       # create userdata pointer
       ud_ptr = LibLuaJIT.lua_newuserdata(self, sizeof(typeof(value)))
@@ -715,6 +710,11 @@ module Luajit
       set_metatable(ud_index)
     end
 
+    # Same as `Luajit.remove_trackable`
+    def untrack(ref : Reference) : Nil
+      Luajit.remove_trackable(ref)
+    end
+
     def destroy_userdata(ref : Reference) : Nil
       untrack(ref)
     end
@@ -723,35 +723,8 @@ module Luajit
       to_userdata(index).as(Pointer(U)).value
     end
 
-    # Creates a new global table named _name_ and returns the stack index
-    def create_global_table(name : String) : Int32
-      new_table
-      table_idx = size
-      push_value(table_idx)
-      set_global(name)
-      table_idx
-    end
-
-    def create_table_function(index : Int32, key : String, &block : Function) : Nil
-      push(&block)
-      set_field(index, key)
-    end
-
-    def create_metatable(name : String) : Int32
-      new_metatable(LuaState.metatable_name(name))
-      size
-    end
-
-    def define_table_metamethod(index : Int32, event : String, &block : Function) : Nil
-      push(event)
-      push(&block)
-      raw_set(index)
-    end
-
-    def define_metatable_property(index : Int32, event : String, &)
-      push(event)
-      yield
-      raw_set(index)
+    def builder : Builder
+      Builder.new(self)
     end
   end
 end
