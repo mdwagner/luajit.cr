@@ -40,7 +40,8 @@ Checkout `spec/luajit_spec.cr` for other examples
 - [x] LuaJIT bindings
 - [x] luajit.cr LuaState
 - [x] luajit.cr Builder
-- [] Comprehensive tests
+- [ ] Comprehensive tests
+- [ ] Better docs + readme
 
 I have everything working and it should be usable to actually create stuff now, but haven't tested it enough. I'm hoping with more practical use it will have better test coverage.
 
