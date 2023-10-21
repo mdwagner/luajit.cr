@@ -5,7 +5,7 @@ license: MIT
 authors:
   - Michael Wagner <mdwranger@gmail.com>
 
-crystal: 1.8.2
+crystal: ~> 1.8
 
 crystalline:
   main: spec/spec_helper.cr

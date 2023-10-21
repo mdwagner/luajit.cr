@@ -16,11 +16,28 @@ module Luajit
       "luajit_cr::#{name}"
     end
 
+    # :nodoc:
+    def self.set_registry_address(state : LuaState) : Nil
+      state.push(state.to_unsafe.address.to_s)
+      state.set_field(
+        LibLuaJIT::LUA_REGISTRYINDEX,
+        LuaState.metatable_name("__LuaState__")
+      )
+    end
+
     def initialize(@ptr)
     end
 
     def to_unsafe
       @ptr
+    end
+
+    # :nodoc:
+    def get_registry_address : String
+      get_field(LibLuaJIT::LUA_REGISTRYINDEX, LuaState.metatable_name("__LuaState__"))
+      to_string(-1).tap do
+        remove(-1)
+      end
     end
 
     # Similar to `lua_close`
@@ -329,7 +346,7 @@ module Luajit
       proc = CFunction.new do |l|
         state = LuaState.new(l)
         ud = state.to_userdata(-1)
-        state.pop(-1)
+        state.remove(-1)
         Box(typeof(block)).unbox(ud).call(state)
       end
       LuaStatus.new(LibLuaJIT.lua_cpcall(self, proc, box))
@@ -559,6 +576,10 @@ module Luajit
         raise LuaMemoryError.new
       when .handler_error?
         raise LuaHandlerError.new
+      when .syntax_error?
+        raise LuaSyntaxError.new
+      when .file_error?
+        raise LuaFileError.new
       end
     end
 
@@ -571,6 +592,10 @@ module Luajit
         raise LuaMemoryError.new
       when .handler_error?
         raise LuaHandlerError.new
+      when .syntax_error?
+        raise LuaSyntaxError.new
+      when .file_error?
+        raise LuaFileError.new
       end
     end
 
@@ -676,7 +701,7 @@ module Luajit
 
     # Same as `Luajit.add_trackable`
     def track(ptr : Pointer(Void)) : Nil
-      Luajit.add_trackable(ptr)
+      Luajit.add_trackable(get_registry_address, ptr)
     end
 
     def create_userdata(value, name : String) : Nil
@@ -712,7 +737,7 @@ module Luajit
 
     # Same as `Luajit.remove_trackable`
     def untrack(ref : Reference) : Nil
-      Luajit.remove_trackable(ref)
+      Luajit.remove_trackable(get_registry_address, ref)
     end
 
     def destroy_userdata(ref : Reference) : Nil

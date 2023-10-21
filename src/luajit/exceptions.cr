@@ -23,6 +23,13 @@ module Luajit
     end
   end
 
+  class LuaFileError < Exception
+    def initialize
+      super("Lua file error")
+    end
+  end
+
+  # TODO: make above errors like this
   class LuaError < Exception
     def initialize(state : LuaState)
       msg = "Unknown error"
