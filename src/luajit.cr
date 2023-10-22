@@ -2,7 +2,9 @@ require "./luajit/version"
 require "./luajit/*"
 
 module Luajit
-  # Collection of pointers to track within Crystal to avoid GC
+  # LuaState (pointer address) => tracked pointers used within LuaState
+  #
+  # Used to avoid garbage collecting in-use pointers inside LuaState
   TRACKABLES = Hash(String, Array(Pointer(Void))).new
 
   def self.new_state : LuaState
@@ -20,7 +22,7 @@ module Luajit
 
   def self.run(&block : LuaState ->) : Nil
     state = new_state
-    state_address = state.to_unsafe.address.to_s
+    state_address = LuaState.pointer_address(state)
     begin
       state.open_library(:all)
       status = state.c_pcall do |s|
@@ -79,7 +81,7 @@ module Luajit
   #
   # WARNING: Only do this when no other LuaState objects exist!
   #
-  # DEPRECATED: No longer needed since...and should use #clear_trackables(String) instead
+  # DEPRECATED: No longer needed since...and should use `#clear_trackables(String)` instead
   def self.clear_trackables : Nil
     TRACKABLES.clear
   end

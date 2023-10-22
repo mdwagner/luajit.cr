@@ -16,9 +16,21 @@ module Luajit
       "luajit_cr::#{name}"
     end
 
+    # Returns the pointer address of _state_
+    #
+    # :nodoc:
+    def self.pointer_address(state : LuaState) : String
+      state.to_unsafe.address.to_s
+    end
+
+    # Sets the _state_ pointer address inside it's own registry
+    #
+    # Used with `#get_registry_address` for tracking whether a LuaState
+    # instance or thread is part of a parent LuaState instance
+    #
     # :nodoc:
     def self.set_registry_address(state : LuaState) : Nil
-      state.push(state.to_unsafe.address.to_s)
+      state.push(pointer_address(state))
       state.set_field(
         LibLuaJIT::LUA_REGISTRYINDEX,
         LuaState.metatable_name("__LuaState__")
@@ -32,6 +44,10 @@ module Luajit
       @ptr
     end
 
+    # Returns the LuaState pointer address inside the registry
+    #
+    # Works across the main thread and child threads
+    #
     # :nodoc:
     def get_registry_address : String
       get_field(LibLuaJIT::LUA_REGISTRYINDEX, LuaState.metatable_name("__LuaState__"))
