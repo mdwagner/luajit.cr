@@ -20,6 +20,16 @@ module Luajit
     end
   end
 
+  def self.new_state_with_cleanup : Tuple(LuaState, Proc(Nil))
+    state = new_state
+    state_address = LuaState.pointer_address(state)
+    proc = -> {
+      clear_trackables(state_address)
+      state.close
+    }
+    {state, proc}
+  end
+
   def self.run(&block : LuaState ->) : Nil
     state = new_state
     state_address = LuaState.pointer_address(state)

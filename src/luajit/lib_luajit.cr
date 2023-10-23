@@ -1,5 +1,9 @@
 module Luajit
-  @[Link(ldflags: "`pkg-config --libs luajit`")]
+  {% if flag?(:win32) %}
+    @[Link({{ env("LUAJIT_CR_LIB_PATH") || "#{__DIR__}\\..\\..\\ext\\luajit\\lua51" }})]
+  {% else %}
+    @[Link(ldflags: "`pkg-config --libs luajit`")]
+  {% end %}
   lib LibLuaJIT
     LUA_MULTRET        =      -1
     LUA_REGISTRYINDEX  = -10_000

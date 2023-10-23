@@ -6,8 +6,11 @@ LuaJIT bindings for Crystal
 
 1. Install [LuaJIT](https://luajit.org)
     - [Linux](https://www.google.com/search?q=install+luajit+linux)
+        - Install with package manager
     - [Mac](https://www.google.com/search?q=install+luajit+mac)
+        - Install with brew
     - [Windows](https://www.google.com/search?q=install+luajit+windows)
+        - Run `.\scripts\build_luajit.bat` to clone, build, and install LuaJIT library into `ext/` directory
 
 2. Add the dependency to your `shard.yml`:
 
@@ -38,6 +41,7 @@ Checkout `spec/luajit_spec.cr` for other examples
 ## Development
 
 - [x] LuaJIT bindings
+- [x] Works on Windows (+build script)
 - [x] luajit.cr LuaState
 - [x] luajit.cr Builder
 - [ ] Comprehensive tests
