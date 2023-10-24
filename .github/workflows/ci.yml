@@ -33,5 +33,5 @@ jobs:
       - uses: ilammy/msvc-dev-cmd@v1
       - name: Build LuaJIT for Windows
         run: .\scripts\build_luajit.bat
-      - name: Output Built Library
-        run: ls ext\luajit
+      - name: Run tests
+        run: crystal spec
