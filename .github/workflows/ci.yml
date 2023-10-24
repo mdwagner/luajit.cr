@@ -30,5 +30,6 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: crystal-lang/install-crystal@v1
+      - uses: ilammy/msvc-dev-cmd@v1
       - name: Debug windows install
         run: .\scripts\build_luajit.bat
