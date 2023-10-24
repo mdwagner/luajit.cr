@@ -24,3 +24,11 @@ jobs:
           crystal: ${{ matrix.crystal_version }}
       - name: Run tests
         run: crystal spec
+
+  windows-specs:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: crystal-lang/install-crystal@v1
+      - name: Debug windows install
+        run: .\scripts\build_luajit.bat
