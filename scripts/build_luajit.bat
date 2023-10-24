@@ -2,7 +2,11 @@
 SETLOCAL
 
 :: Define the destination path
-set DEST_PATH=.\ext\luajit
+set REL_DEST_PATH=.\ext\luajit
+
+pushd %REL_DEST_PATH%
+set DEST_PATH=%CD%
+popd
 
 :: Create a unique temporary directory for the LuaJIT repository
 set LUAJIT_TEMP_DIR=%TEMP%\LuaJIT_Clone_%RANDOM%
