@@ -49,8 +49,6 @@ if not exist %DEST_PATH% (
 echo Copying files to %DEST_PATH%...
 copy /Y %LUAJIT_TEMP_DIR%\src\*.dll %DEST_PATH%
 copy /Y %LUAJIT_TEMP_DIR%\src\*.lib %DEST_PATH%
-copy /Y %LUAJIT_TEMP_DIR%\src\*.exp %DEST_PATH%
-copy /Y %LUAJIT_TEMP_DIR%\src\*.pdb %DEST_PATH%
 
 if errorlevel 1 (
     echo Failed to copy files.
