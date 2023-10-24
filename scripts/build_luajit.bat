@@ -25,6 +25,9 @@ cd %LUAJIT_TEMP_DIR%\src
 ::     exit /b 1
 :: )
 
+echo Dir
+dir
+
 :: Build LuaJIT
 echo Building LuaJIT...
 .\msvcbuild.bat
