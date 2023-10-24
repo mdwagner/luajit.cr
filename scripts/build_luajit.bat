@@ -16,7 +16,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-cd %LUAJIT_TEMP_DIR%\src
+pushd %LUAJIT_TEMP_DIR%\src
 
 :: Output the current directory structure for debugging
 echo Current directory structure:
@@ -39,6 +39,8 @@ if errorlevel 1 (
     exit /b 1
 )
 
+popd
+
 :: Ensure the destination directory exists
 if not exist %DEST_PATH% (
     mkdir %DEST_PATH%
@@ -46,10 +48,10 @@ if not exist %DEST_PATH% (
 
 :: Copy the generated files to the destination path
 echo Copying files to %DEST_PATH%...
-copy /Y *.dll %DEST_PATH%
-copy /Y *.lib %DEST_PATH%
-copy /Y *.exp %DEST_PATH%
-copy /Y *.pdb %DEST_PATH%
+copy /Y %LUAJIT_TEMP_DIR%\src\*.dll %DEST_PATH%
+copy /Y %LUAJIT_TEMP_DIR%\src\*.lib %DEST_PATH%
+copy /Y %LUAJIT_TEMP_DIR%\src\*.exp %DEST_PATH%
+copy /Y %LUAJIT_TEMP_DIR%\src\*.pdb %DEST_PATH%
 
 if errorlevel 1 (
     echo Failed to copy files.
