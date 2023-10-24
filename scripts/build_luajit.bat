@@ -15,7 +15,8 @@ if errorlevel 1 (
     echo Failed to clone the repository.
     exit /b 1
 )
-cd %LUAJIT_TEMP_DIR%\src
+cd %LUAJIT_TEMP_DIR%
+cd src
 
 :: Set up the build environment (assuming Visual Studio's vcvarsall.bat)
 :: Adjust the path to vcvarsall.bat if needed
