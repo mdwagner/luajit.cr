@@ -18,6 +18,11 @@ if errorlevel 1 (
 
 cd %LUAJIT_TEMP_DIR%\src
 
+:: Output the current directory structure for debugging
+echo Current directory structure:
+tree /F
+echo.
+
 :: Set up the build environment (assuming Visual Studio's vcvarsall.bat)
 :: Adjust the path to vcvarsall.bat if needed
 :: call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat" x64
