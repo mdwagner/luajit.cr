@@ -28,7 +28,7 @@ pushd %LUAJIT_TEMP_DIR%\src
 
 :: Build LuaJIT
 echo Building LuaJIT...
-msvcbuild.bat
+call msvcbuild.bat
 if errorlevel 1 (
     echo Failed to build LuaJIT.
     exit /b 1
