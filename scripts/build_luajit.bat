@@ -3,8 +3,8 @@ SETLOCAL
 
 :: Define the destination path
 set REL_DEST_PATH=.\ext\luajit
-mkdir %REL_DEST_PATH%
 
+mkdir %REL_DEST_PATH%
 pushd %REL_DEST_PATH%
 set DEST_PATH=%CD%
 popd
@@ -33,7 +33,7 @@ pushd %LUAJIT_TEMP_DIR%\src
 
 :: Build LuaJIT
 echo Building LuaJIT...
-call msvcbuild.bat
+call msvcbuild.bat static
 if errorlevel 1 (
     echo Failed to build LuaJIT.
     exit /b 1
