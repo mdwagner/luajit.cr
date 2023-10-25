@@ -34,4 +34,6 @@ jobs:
       - name: Build LuaJIT for Windows
         run: .\scripts\build_luajit.bat
       - name: Run tests
-        run: crystal spec
+        run: |
+          tree /F /A
+          crystal spec

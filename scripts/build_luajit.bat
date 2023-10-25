@@ -55,5 +55,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
+tree %DEST_PATH% /F /A
+
 echo Done!
 exit /b 0
