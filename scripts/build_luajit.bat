@@ -3,6 +3,7 @@ SETLOCAL
 
 :: Define the destination path
 set REL_DEST_PATH=.\ext\luajit
+mkdir %REL_DEST_PATH%
 
 pushd %REL_DEST_PATH%
 set DEST_PATH=%CD%
