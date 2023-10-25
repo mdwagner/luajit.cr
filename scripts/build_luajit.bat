@@ -32,7 +32,7 @@ pushd %LUAJIT_TEMP_DIR%\src
 :: )
 
 :: Build LuaJIT
-echo Building LuaJIT...
+echo Building LuaJIT (static)...
 call msvcbuild.bat static
 if errorlevel 1 (
     echo Failed to build LuaJIT.
@@ -47,16 +47,17 @@ if not exist %DEST_PATH% (
 )
 
 :: Copy the generated files to the destination path
-echo Copying files to %DEST_PATH%...
-copy /Y %LUAJIT_TEMP_DIR%\src\*.dll %DEST_PATH%
-copy /Y %LUAJIT_TEMP_DIR%\src\*.lib %DEST_PATH%
+echo Copying lua51.lib to %DEST_PATH%...
+:: copy /Y %LUAJIT_TEMP_DIR%\src\*.dll %DEST_PATH%
+:: copy /Y %LUAJIT_TEMP_DIR%\src\*.lib %DEST_PATH%
+copy /Y %LUAJIT_TEMP_DIR%\src\lua51.lib %DEST_PATH%
 
 if errorlevel 1 (
     echo Failed to copy files.
     exit /b 1
 )
 
-tree %DEST_PATH% /F /A
+:: tree %DEST_PATH% /F /A
 
 echo Done!
 exit /b 0
