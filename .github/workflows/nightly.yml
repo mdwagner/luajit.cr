@@ -3,6 +3,8 @@ name: Nightly Example
 on:
   push:
     branches: [master]
+  schedule:
+    - cron: 0 13 * * 1
 
 jobs:
   windows:
