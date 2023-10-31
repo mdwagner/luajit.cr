@@ -31,10 +31,7 @@ module Luajit
     # :nodoc:
     def self.set_registry_address(state : LuaState) : Nil
       state.push(pointer_address(state))
-      state.set_field(
-        LibLuaJIT::LUA_REGISTRYINDEX,
-        LuaState.metatable_name("__LuaState__")
-      )
+      state.set_field(LibLuaJIT::LUA_REGISTRYINDEX, LuaState.metatable_name("__LuaState__"))
     end
 
     def initialize(@ptr)
