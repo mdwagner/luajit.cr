@@ -48,6 +48,8 @@ module Luajit
     LUAJIT_MODE_OFF    = 0x0000
     LUAJIT_MODE_ON     = 0x0100
     LUAJIT_MODE_FLUSH  = 0x0200
+    LUA_NOREF          =     -2
+    LUA_REFNIL         =     -1
 
     alias Int = LibC::Int
     alias SizeT = LibC::SizeT
@@ -336,6 +338,18 @@ module Luajit
 
     def lua_getgccount(l) : Int32
       LibLuaJIT.lua_gc(l, LibLuaJIT::LUA_GCCOUNT, 0)
+    end
+
+    def lua_ref(l)
+      LibLuaJIT.luaL_ref(l, LibLuaJIT::LUA_REGISTRYINDEX)
+    end
+
+    def lua_unref(l, ref)
+      LibLuaJIT.luaL_unref(l, LibLuaJIT::LUA_REGISTRYINDEX, ref)
+    end
+
+    def lua_getref(l, ref)
+      LibLuaJIT.lua_rawgeti(l, LibLuaJIT::LUA_REGISTRYINDEX, ref)
     end
 
     def luaL_argcheck(l, cond : Bool, numarg : Int32, extramsg : String)

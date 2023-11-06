@@ -1,42 +1,56 @@
 module Luajit
+  class LuaError < Exception
+    def self.check!(state : LuaState, status : LuaStatus? = nil)
+      case status || state.status
+      when .runtime_error?
+        raise new(state, cause: LuaRuntimeError.new)
+      when .memory_error?
+        raise new(state, cause: LuaMemoryError.new)
+      when .handler_error?
+        raise new(state, cause: LuaHandlerError.new)
+      when .syntax_error?
+        raise new(state, cause: LuaSyntaxError.new)
+      when .file_error?
+        raise new(state, cause: LuaFileError.new)
+      end
+    end
+
+    def initialize(state : LuaState, cause : Exception? = nil)
+      if state.is_string?(-1)
+        super(state.to_string(-1), cause: cause)
+      else
+        super("Unknown error", cause: cause)
+      end
+    end
+  end
+
   class LuaRuntimeError < Exception
-    def initialize
-      super("Lua runtime error")
+    def initialize(message = "Lua runtime error")
+      super(message)
     end
   end
 
   class LuaMemoryError < Exception
-    def initialize
-      super("Lua memory allocation error")
-    end
-  end
-
-  class LuaSyntaxError < Exception
-    def initialize
-      super("Lua syntax error during pre-compilation")
+    def initialize(message = "Lua memory allocation error")
+      super(message)
     end
   end
 
   class LuaHandlerError < Exception
-    def initialize
-      super("Failed to run Lua error handler function")
+    def initialize(message = "Failed to run Lua error handler function")
+      super(message)
+    end
+  end
+
+  class LuaSyntaxError < Exception
+    def initialize(message = "Lua syntax error during pre-compilation")
+      super(message)
     end
   end
 
   class LuaFileError < Exception
-    def initialize
-      super("Lua file error")
-    end
-  end
-
-  # TODO: make above errors like this
-  class LuaError < Exception
-    def initialize(state : LuaState)
-      msg = "Unknown error"
-      if state.is_string?(-1)
-        msg = state.to_string(-1)
-      end
-      super(msg)
+    def initialize(message = "Lua file error")
+      super(message)
     end
   end
 end

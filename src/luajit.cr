@@ -12,9 +12,7 @@ module Luajit
       LuaState.set_registry_address(state)
       state.at_panic do |l|
         s = LuaState.new(l)
-        if msg = s.is_string?(-1)
-          STDERR.puts msg
-        end
+        STDERR.puts LuaError.new(s).message
         0
       end
     end
@@ -39,22 +37,7 @@ module Luajit
         block.call(s)
         0
       end
-      case status
-      when .ok?, .yield?
-        # pass
-      when .runtime_error?
-        raise LuaRuntimeError.new
-      when .memory_error?
-        raise LuaMemoryError.new
-      when .handler_error?
-        raise LuaHandlerError.new
-      when .syntax_error?
-        raise LuaSyntaxError.new
-      when .file_error?
-        raise LuaFileError.new
-      else
-        raise LuaError.new(state)
-      end
+      LuaError.check!(state, status)
     ensure
       clear_trackables(state_address)
       state.close

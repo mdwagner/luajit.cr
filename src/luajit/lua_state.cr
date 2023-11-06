@@ -561,12 +561,7 @@ module Luajit
         Box(typeof(block)).unbox(data).call(state, size)
       end
       result = LuaStatus.new(LibLuaJIT.lua_load(self, proc, box, chunk_name))
-      case result
-      when .syntax_error?
-        raise LuaSyntaxError.new
-      when .memory_error?
-        raise LuaMemoryError.new
-      end
+      LuaError.check!(self, result)
       result
     end
 
@@ -582,34 +577,14 @@ module Luajit
 
     # Similar to `luaL_dostring`
     def execute(code : String) : Nil
-      case LuaStatus.new(LibxLuaJIT.luaL_dostring(self, code))
-      when .runtime_error?
-        raise LuaRuntimeError.new
-      when .memory_error?
-        raise LuaMemoryError.new
-      when .handler_error?
-        raise LuaHandlerError.new
-      when .syntax_error?
-        raise LuaSyntaxError.new
-      when .file_error?
-        raise LuaFileError.new
-      end
+      status = LuaStatus.new(LibxLuaJIT.luaL_dostring(self, code))
+      LuaError.check!(self, status)
     end
 
     # Similar to `luaL_dofile`
     def execute(path : Path) : Nil
-      case LuaStatus.new(LibxLuaJIT.luaL_dofile(self, path))
-      when .runtime_error?
-        raise LuaRuntimeError.new
-      when .memory_error?
-        raise LuaMemoryError.new
-      when .handler_error?
-        raise LuaHandlerError.new
-      when .syntax_error?
-        raise LuaSyntaxError.new
-      when .file_error?
-        raise LuaFileError.new
-      end
+      status = LuaStatus.new(LibxLuaJIT.luaL_dofile(self, path))
+      LuaError.check!(self, status)
     end
 
     # Similar to `lua_error`
@@ -630,6 +605,31 @@ module Luajit
     # Similar to `luaL_typerror`
     def raise_type(pos : Int32, type : String) : Nil
       LibLuaJIT.luaL_typerror(self, pos, type)
+    end
+
+    # Similar to `luaL_ref`
+    def create_ref(index : Int32) : Int32
+      LibLuaJIT.luaL_ref(self, index)
+    end
+
+    # Similar to `luaL_unref`
+    def remove_ref(index : Int32, ref : Int32) : Nil
+      LibLuaJIT.luaL_unref(self, index, ref)
+    end
+
+    # Similar to `lua_ref`
+    def create_registry_ref : Int32
+      LibxLuaJIT.lua_ref(self)
+    end
+
+    # Similar to `lua_unref`
+    def remove_registry_ref(ref : Int32) : Nil
+      LibxLuaJIT.lua_unref(self, ref)
+    end
+
+    # Similar to `lua_getref`
+    def get_registry_ref(ref : Int32) : Nil
+      LibxLuaJIT.lua_getref(self, ref)
     end
 
     def assert_args_lt(num_args : Int32, msg : String = "not enough arguments") : Nil
@@ -710,8 +710,6 @@ module Luajit
       end
     end
 
-    #######################################################
-
     # Same as `Luajit.add_trackable`
     def track(ptr : Pointer(Void)) : Nil
       Luajit.add_trackable(get_registry_address, ptr)
@@ -763,6 +761,32 @@ module Luajit
 
     def builder : Builder
       Builder.new(self)
+    end
+
+    def to_any?(index : Int32 = -1) : LuaAny?
+      case type = get_type(index)
+      in .number?
+        LuaAny.new(to_f(index))
+      in .boolean?
+        LuaAny.new(to_boolean(index))
+      in .string?
+        LuaAny.new(to_string(index))
+      in .light_userdata?, .function?, .userdata?, .thread?
+        push_value(index)
+        LuaAny.new(LuaRef.new(create_registry_ref, type))
+      in .table?
+        LuaAny.new(to_h)
+      in .none?, LuaType::Nil
+        nil
+      end
+    end
+
+    def to_h : Hash(String | Float64, LuaAny)
+      LuaTableIterator.new(self).to_h
+    end
+
+    def to_a : Array(LuaAny)
+      LuaAny.to_a(to_h)
     end
   end
 end
