@@ -194,7 +194,11 @@ module Luajit
 
     # Similar to `lua_tolstring`
     def to_string(index : Int32, size : UInt64) : String
-      String.new(LibLuaJIT.lua_tolstring(self, index, pointerof(size)))
+      if s = LibLuaJIT.lua_tolstring(self, index, pointerof(size))
+        String.new(s)
+      else
+        ""
+      end
     end
 
     # Similar to `lua_tostring`
@@ -432,7 +436,11 @@ module Luajit
 
     # Similar to `lua_typename`
     def type_name(lua_type : LuaType) : String
-      String.new(LibLuaJIT.lua_typename(self, lua_type.value))
+      if s = LibLuaJIT.lua_typename(self, lua_type.value)
+        String.new(s)
+      else
+        ""
+      end
     end
 
     # Similar to `luaL_typename`
