@@ -325,11 +325,7 @@ module Luajit
     end
 
     def lua_tostring(l, i : Int32) : String
-      if s = LibLuaJIT.lua_tolstring(l, i, nil)
-        String.new(s)
-      else
-        ""
-      end
+      String.new(LibLuaJIT.lua_tolstring(l, i, nil) || Bytes[])
     end
 
     def lua_open
@@ -361,19 +357,11 @@ module Luajit
     end
 
     def luaL_checkstring(l, n : Int32) : String
-      if s = LibLuaJIT.luaL_checklstring(l, n, nil)
-        String.new(s)
-      else
-        ""
-      end
+      String.new(LibLuaJIT.luaL_checklstring(l, n, nil) || Bytes[])
     end
 
     def luaL_optstring(l, n : Int32, d : String) : String
-      if s = LibLuaJIT.luaL_optlstring(l, n, d, nil)
-        String.new(s)
-      else
-        ""
-      end
+      String.new(LibLuaJIT.luaL_optlstring(l, n, d, nil) || Bytes[])
     end
 
     def luaL_checkint(l, n : Int32) : Int32
@@ -393,11 +381,7 @@ module Luajit
     end
 
     def luaL_typename(l, i : Int32) : String
-      if s = LibLuaJIT.lua_typename(l, LibLuaJIT.lua_type(l, i))
-        String.new(s)
-      else
-        ""
-      end
+      String.new(LibLuaJIT.lua_typename(l, LibLuaJIT.lua_type(l, i)) || Bytes[])
     end
 
     def luaL_dofile(l, filename : Path) : Int32

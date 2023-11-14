@@ -1,6 +1,7 @@
 require "./luajit/version"
 require "./luajit/*"
 
+# https://lua-users.org/wiki/ErrorHandlingBetweenLuaAndCplusplus
 module Luajit
   # LuaState (pointer address) => tracked pointers used within LuaState
   #

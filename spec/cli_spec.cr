@@ -10,9 +10,10 @@ describe "LuckyCLI" do
       l.push do |state|
         state.assert_args_eq(1)
         state.assert_table?(-1)
-        if any = state.to_any?
-          pp! any["args"]["derp"].as_a
-        end
+
+        #if any = state.to_any?
+          #pp! any["args"]["derp"].as_a
+        #end
         0
       end
       l.set_table(table_idx)

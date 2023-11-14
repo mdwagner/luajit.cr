@@ -24,6 +24,9 @@ module Luajit
     end
   end
 
+  class LuaAPIError < Exception
+  end
+
   class LuaRuntimeError < Exception
     def initialize(message = "Lua runtime error")
       super(message)

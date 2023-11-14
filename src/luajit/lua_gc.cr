@@ -1,5 +1,6 @@
 module Luajit
   # Controls the Lua Garbage Collector
+  # TODO: create safe wrappers
   struct LuaGC
     @ptr : Pointer(LibLuaJIT::State)
 

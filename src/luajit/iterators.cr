@@ -14,7 +14,10 @@ module Luajit
     @table_idx : Int32
 
     def initialize(@state : LuaState)
-      raise "Not a table" unless @state.is_table?(-1)
+      #raise "Not a table" unless @state.is_table?(-1)
+      unless @state.is_table?(-1)
+        raise "invalid type: expected 'table', got '#{@state.type_name_at(-1)}'"
+      end
       @table_idx = @state.size
       @state.push(nil)
     end
