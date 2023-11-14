@@ -31,7 +31,7 @@ module Luajit
     # :nodoc:
     def self.set_registry_address(state : LuaState) : Nil
       state.push(pointer_address(state))
-      state.set_field(LibLuaJIT::LUA_REGISTRYINDEX, LuaState.metatable_name("__LuaState__"))
+      state.set_registry(LuaState.metatable_name("__LuaState__"))
     end
 
     def initialize(@ptr)
@@ -47,15 +47,10 @@ module Luajit
     #
     # :nodoc:
     def get_registry_address : String
-      get_field(LibLuaJIT::LUA_REGISTRYINDEX, LuaState.metatable_name("__LuaState__"))
+      get_registry(LuaState.metatable_name("__LuaState__"))
       to_string(-1).tap do
-        remove(-1)
+        pop(1)
       end
-    end
-
-    # Similar to `lua_close`
-    def close : Nil
-      LibLuaJIT.lua_close(self)
     end
 
     # Returns the version number of this core
@@ -82,72 +77,9 @@ module Luajit
       {% end %}
     end
 
-    # Similar to `lua_gc`
-    def gc : LuaGC
-      LuaGC.new(to_unsafe)
-    end
-
-    # Similar to `lua_atpanic`
-    def at_panic(&cb : CFunction) : CFunction
-      LibLuaJIT.lua_atpanic(self, cb)
-    end
-
-    # Similar to `lua_concat`
-    def concat(n : Int32) : Nil
-      LibLuaJIT.lua_concat(self, n)
-    end
-
-    # Similar to `lua_gettop`
-    def size : Int32
-      LibLuaJIT.lua_gettop(self)
-    end
-
-    # Similar to `lua_settop`
-    def set_top(index : Int32) : Nil
-      LibLuaJIT.lua_settop(self, index)
-    end
-
     # Similar to `lua_pop`
     def pop(n : Int32) : Nil
       LibxLuaJIT.lua_pop(self, n)
-    end
-
-    # Similar to `lua_getfield`
-    def get_field(index : Int32, name : String)
-      LibLuaJIT.lua_getfield(self, index, name)
-    end
-
-    # Similar to `lua_setfield`
-    def set_field(index : Int32, k : String) : Nil
-      LibLuaJIT.lua_setfield(self, index, k)
-    end
-
-    # Similar to `lua_getglobal`
-    def get_global(name : String) : Nil
-      unsafe_push_cfunction do |l|
-        state = LuaState.new(l)
-        state.unsafe_get_global(state.to_string(-1))
-        1
-      end
-      push(name)
-      status = pcall(1, 1)
-      unless status.ok?
-        raise LuaAPIError.new
-      end
-    end
-
-    def unsafe_get_global(name : String)
-      LibxLuaJIT.lua_getglobal(self, name)
-    end
-
-    # Similar to `lua_setglobal`
-    def set_global(name : String) : Nil
-      LibxLuaJIT.lua_setglobal(self, name)
-    end
-
-    # Similar to `lua_getmetatable`
-    def get_metatable(index : Int32) : Int32
-      LibLuaJIT.lua_getmetatable(self, index)
     end
 
     # Similar to `luaL_getmetatable`
@@ -160,21 +92,6 @@ module Luajit
       LibLuaJIT.lua_setmetatable(self, index)
     end
 
-    # Similar to `lua_gettable`
-    def get_table(index : Int32) : Nil
-      LibLuaJIT.lua_gettable(self, index)
-    end
-
-    # Similar to `lua_settable`
-    def set_table(index : Int32) : Nil
-      LibLuaJIT.lua_settable(self, index)
-    end
-
-    # Similar to `lua_createtable`
-    def create_table(narr : Int32, nrec : Int32) : Nil
-      LibLuaJIT.lua_createtable(self, narr, nrec)
-    end
-
     # Similar to `luaL_newmetatable`
     def new_metatable(tname : String) : Int32
       LibLuaJIT.luaL_newmetatable(self, tname)
@@ -185,11 +102,6 @@ module Luajit
       LibLuaJIT.luaL_getmetafield(self, obj, e)
     end
 
-    # Similar to `lua_toboolean`
-    def to_boolean(index : Int32) : Bool
-      LibLuaJIT.lua_toboolean(self, index) == true.to_unsafe
-    end
-
     # Same as `LuaState#to_i32`
     def to_i(index : Int32) : Int32
       to_i32(index)
@@ -198,16 +110,6 @@ module Luajit
     # Returns `LuaState#to_i64` converted to `Int32`
     def to_i32(index : Int32) : Int32
       to_i64(index).to_i
-    end
-
-    # Similar to `lua_tointeger`
-    def to_i64(index : Int32) : Int64
-      LibLuaJIT.lua_tointeger(self, index)
-    end
-
-    # Similar to `lua_tolstring`
-    def to_string(index : Int32, size : UInt64) : String
-      String.new(LibLuaJIT.lua_tolstring(self, index, pointerof(size)) || Bytes[])
     end
 
     # Similar to `lua_tostring`
@@ -223,11 +125,6 @@ module Luajit
     # Returns `LuaState#to_f64` converted to `Float32`
     def to_f32(index : Int32) : Float32
       to_f64(index).to_f32
-    end
-
-    # Similar to `lua_tonumber`
-    def to_f64(index : Int32) : Float64
-      LibLuaJIT.lua_tonumber(self, index)
     end
 
     # Similar to `lua_touserdata`
@@ -901,9 +798,9 @@ module Luajit
       end
     end
 
-    ############
-    # NEW CODE #
-    ############
+    ###########################################################################
+    ############################### NEW CODE ##################################
+    ###########################################################################
 
     ### ACCESS FUNCTIONS
 
@@ -1228,19 +1125,82 @@ module Luajit
     # :nodoc:
     LUA_GETFIELD_PROC = CFunction.new do |l|
       state = LuaState.new(l)
-      index = state.to_i(-2)
-      name = state.to_string(-1)
-      LibLuaJIT.lua_getfield(state, index, name)
+      key = state.to_string(-1)
+      state.pop(1)
+      LibLuaJIT.lua_getfield(state, -1, key)
       1
     end
 
     # lua_getfield
     # [-0, +1, e]
-    def get_field(index : Int32, name : String)
+    def get_field(index : Int32, name : String) : Nil
+      case index
+      when LibLuaJIT::LUA_GLOBALSINDEX
+        return get_global(name)
+      when LibLuaJIT::LUA_REGISTRYINDEX
+        return get_registry(name)
+      when LibLuaJIT::LUA_ENVIRONINDEX
+        return get_environment(name)
+      end
+
       LibxLuaJIT.lua_pushcfunction(self, LUA_GETFIELD_PROC)
-      push(index)
+      push_value(index)
       push(name)
       status = pcall(2, 1)
+      unless status.ok?
+        raise LuaAPIError.new
+      end
+    end
+
+    # :nodoc:
+    LUA_GETGLOBAL_PROC = CFunction.new do |l|
+      state = LuaState.new(l)
+      key = state.to_string(-1)
+      LibLuaJIT.lua_getfield(state, LibLuaJIT::LUA_GLOBALSINDEX, key)
+      1
+    end
+
+    # [-0, +1, e]
+    def get_global(name : String) : Nil
+      LibxLuaJIT.lua_pushcfunction(self, LUA_GETGLOBAL_PROC)
+      push(name)
+      status = pcall(1, 1)
+      unless status.ok?
+        raise LuaAPIError.new
+      end
+    end
+
+    # :nodoc:
+    LUA_GETREGISTRY_PROC = CFunction.new do |l|
+      state = LuaState.new(l)
+      key = state.to_string(-1)
+      LibLuaJIT.lua_getfield(state, LibLuaJIT::LUA_REGISTRYINDEX, key)
+      1
+    end
+
+    # [-0, +1, e]
+    def get_registry(name : String) : Nil
+      LibxLuaJIT.lua_pushcfunction(self, LUA_GETREGISTRY_PROC)
+      push(name)
+      status = pcall(1, 1)
+      unless status.ok?
+        raise LuaAPIError.new
+      end
+    end
+
+    # :nodoc:
+    LUA_GETENVIRONMENT_PROC = CFunction.new do |l|
+      state = LuaState.new(l)
+      key = state.to_string(-1)
+      LibLuaJIT.lua_getfield(state, LibLuaJIT::LUA_ENVIRONINDEX, key)
+      1
+    end
+
+    # [-0, +1, e]
+    def get_environment(name : String) : Nil
+      LibxLuaJIT.lua_pushcfunction(self, LUA_GETENVIRONMENT_PROC)
+      push(name)
+      status = pcall(1, 1)
       unless status.ok?
         raise LuaAPIError.new
       end
