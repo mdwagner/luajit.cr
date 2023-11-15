@@ -102,7 +102,7 @@ module Luajit
     fun lua_createtable(l : State*, narr : Int, nrec : Int) : Void
     fun lua_dump(l : State*, writer : Writer, data : Void*) : Int
     fun lua_equal(l : State*, index1 : Int, index2 : Int) : Int
-    fun lua_error(l : State*) : NoReturn
+    fun lua_error(l : State*) : Int
     fun lua_gc(l : State*, what : Int, data : Int) : Int
     fun lua_getallocf(l : State*, ud : Void**) : Alloc
     fun lua_getfenv(l : State*, index : Int) : Void
@@ -116,7 +116,7 @@ module Luajit
     fun lua_isstring(l : State*, index : Int) : Int
     fun lua_isuserdata(l : State*, index : Int) : Int
     fun lua_lessthan(l : State*, index1 : Int, index2 : Int) : Int
-    fun lua_load(l : State*, reader : Reader*, data : Void*, chunkname : Char*) : Int
+    fun lua_load(l : State*, reader : Reader, data : Void*, chunkname : Char*) : Int
     fun lua_newstate(f : Alloc, ud : Void*) : State*
     fun lua_newthread(l : State*) : State*
     fun lua_newuserdata(l : State*, size : SizeT) : Void*
@@ -180,7 +180,7 @@ module Luajit
     fun luaL_addsize(b : Buffer*, n : SizeT) : Void
     fun luaL_addstring(b : Buffer*, s : Char*) : Void
     fun luaL_addvalue(b : Buffer*) : Void
-    fun luaL_argerror(l : State*, narg : Int, extramsg : Char*) : NoReturn
+    fun luaL_argerror(l : State*, narg : Int, extramsg : Char*) : Int
     fun luaL_buffinit(l : State*, b : Buffer*) : Void
     fun luaL_callmeta(l : State*, obj : Int, e : Char*) : Int
     fun luaL_checkany(l : State*, narg : Int) : Void
@@ -191,7 +191,7 @@ module Luajit
     fun luaL_checkstack(l : State*, sz : Int, msg : Char*) : Void
     fun luaL_checktype(l : State*, narg : Int, t : Int) : Void
     fun luaL_checkudata(l : State*, narg : Int, tname : Char*) : Void*
-    fun luaL_error(l : State*, fmt : Char*, ...) : NoReturn
+    fun luaL_error(l : State*, fmt : Char*, ...) : Int
     fun luaL_getmetafield(l : State*, obj : Int, e : Char*) : Int
     fun luaL_gsub(l : State*, s : Char*, p : Char*, r : Char*) : Char*
     fun luaL_loadbuffer(l : State*, buff : Char*, sz : SizeT, name : Char*) : Int

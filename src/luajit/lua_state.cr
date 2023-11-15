@@ -2,8 +2,6 @@ module Luajit
   struct LuaState
     alias CFunction = LibLuaJIT::CFunction
     alias Function = LuaState -> Int32
-    alias Loader = LuaState, Pointer(UInt64) -> String?
-    alias Unloader = LuaState, Pointer(Void), UInt64 -> Int32
 
     enum ThreadStatus
       Main
@@ -32,6 +30,16 @@ module Luajit
     def self.set_registry_address(state : LuaState) : Nil
       state.push(pointer_address(state))
       state.set_registry(LuaState.metatable_name("__LuaState__"))
+    end
+
+    def self.new_state : LuaState
+      state = new(LibLuaJIT.luaL_newstate)
+      set_registry_address(state)
+      state.at_panic do |l|
+        STDERR.puts LuaError.new(LuaState.new(l)).to_s
+        0
+      end
+      state
     end
 
     def initialize(@ptr)
@@ -719,6 +727,7 @@ module Luajit
 
     # lua_gc
     # [-0, +0, e]
+    # TODO
     #def gc : LuaGC
       #LuaGC.new(to_unsafe)
     #end
@@ -765,8 +774,9 @@ module Luajit
         return get_environment(name)
       end
 
-      LibLuaJIT.lua_pushcclosure(self, LUA_GETFIELD_PROC, 0)
       push_value(index)
+      LibLuaJIT.lua_pushcclosure(self, LUA_GETFIELD_PROC, 0)
+      insert(-2)
       push(name)
       status = pcall(2, 1)
       unless status.ok?
@@ -888,54 +898,34 @@ module Luajit
       box = Box(typeof(block)).box(block)
       proc = CFunction.new do |l|
         state = LuaState.new(l)
-        ud = state.to_userdata(-1)
-        state.remove(-1)
-        begin
-          Box(typeof(block)).unbox(ud).call(state)
-        rescue err
-          state.raise_error(err.to_s)
-          0
+        if ud = state.to_userdata?(-1)
+          state.pop(1)
+          begin
+            Box(typeof(block)).unbox(ud).call(state)
+          rescue err
+            LibLuaJIT.luaL_error(state, err.to_s)
+          end
+        else
+          LibLuaJIT.luaL_error(state, "UserData not found")
         end
       end
       LuaStatus.new(LibLuaJIT.lua_cpcall(self, proc, box))
     end
 
-    # lua_load
-    # [-0, +1, -]
-    def load(chunk_name : String, &block : Loader) : LuaStatus
-      box = Box(typeof(block)).box(block)
-      proc = LibLuaJIT::Reader.new do |l, data, size|
-        state = LuaState.new(l)
-        Box(typeof(block)).unbox(data).call(state, size)
-      end
-      result = LuaStatus.new(LibLuaJIT.lua_load(self, proc, box, chunk_name))
-      LuaError.check!(self, result)
-      result
-    end
-
-    # lua_dump
-    # [-0, +0, m]
-    def dump(&block : Unloader) : Int32
-      box = Box(typeof(block)).box(block)
-      proc = LibLuaJIT::Writer.new do |l, ptr, size, ud|
-        state = LuaState.new(l)
-        Box(typeof(block)).unbox(ud).call(state, ptr, size)
-      end
-      LibLuaJIT.lua_dump(self, proc, box)
-    end
-
     # luaL_dostring
     # [-0, +?, m]
-    def execute(str : String)
-      status = load(str) { str unless str.empty? }
-      raise LuaAPIError.new unless status.ok?
-      pcall(0, LibLuaJIT::LUA_MULTRET)
+    def execute(str : String) : LuaStatus
+      status = LuaStatus.new(LibLuaJIT.luaL_loadstring(self, str))
+      return pcall(0, LibLuaJIT::LUA_MULTRET) if status.ok?
+      status
     end
 
     # luaL_dofile
     # [-0, +?, m]
-    def execute(path : Path)
-      execute(File.read(path))
+    def execute(path : Path) : LuaStatus
+      status = LuaStatus.new(LibLuaJIT.luaL_loadfile(self, path.to_s))
+      return pcall(0, LibLuaJIT::LUA_MULTRET) if status.ok?
+      status
     end
 
     ### OTHER FUNCTIONS
@@ -1045,12 +1035,15 @@ module Luajit
       track(box)
       proc = CFunction.new do |l|
         state = LuaState.new(l)
-        ud = state.to_userdata(state.upvalue_at(1))
-        begin
-          Box(typeof(block)).unbox(ud).call(state)
-        rescue err
-          state.raise_error(err.inspect)
-          0
+        if ud = state.to_userdata?(state.up_value(1))
+          state.pop(1)
+          begin
+            Box(typeof(block)).unbox(ud).call(state)
+          rescue err
+            LibLuaJIT.luaL_error(state, err.inspect)
+          end
+        else
+          LibLuaJIT.luaL_error(state, "UserData not found")
         end
       end
       push(box)

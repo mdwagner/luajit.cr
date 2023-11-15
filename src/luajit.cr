@@ -8,40 +8,22 @@ module Luajit
   # Used to avoid garbage collecting in-use pointers inside LuaState
   TRACKABLES = Hash(String, Array(Pointer(Void))).new
 
-  def self.new_state : LuaState
-    LuaState.new(LibLuaJIT.luaL_newstate).tap do |state|
-      LuaState.set_registry_address(state)
-      state.at_panic do |l|
-        s = LuaState.new(l)
-        STDERR.puts LuaError.new(s).message
-        0
-      end
-    end
+  def self.new : LuaState
+    LuaState.new_state
   end
 
-  def self.new_state_with_cleanup : Tuple(LuaState, Proc(Nil))
-    state = new_state
-    state_address = LuaState.pointer_address(state)
-    proc = -> {
-      clear_trackables(state_address)
-      state.close
-    }
-    {state, proc}
+  def self.close(state : LuaState) : Nil
+    clear_trackables(LuaState.pointer_address(state))
+    state.close
   end
 
-  def self.run(&block : LuaState ->) : Nil
-    state = new_state
-    state_address = LuaState.pointer_address(state)
+  def self.run(& : LuaState ->) : Nil
+    state = new
     begin
       state.open_library(:all)
-      status = state.c_pcall do |s|
-        block.call(s)
-        0
-      end
-      LuaError.check!(state, status)
+      yield state
     ensure
-      clear_trackables(state_address)
-      state.close
+      close(state)
     end
   end
 
