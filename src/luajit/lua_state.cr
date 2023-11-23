@@ -2,7 +2,6 @@ module Luajit
   struct LuaState
     alias CFunction = LibLuaJIT::CFunction
     alias Function = LuaState -> Int32
-    alias Debug = LibLuaJIT::Debug
 
     enum ThreadStatus
       Main
@@ -36,14 +35,36 @@ module Luajit
       state.set_registry(MT_NAME)
     end
 
-    def self.new_state : LuaState
-      state = new(LibLuaJIT.luaL_newstate)
-      set_registry_address(state)
-      state.at_panic do |l|
-        STDERR.puts LuaError.new(LuaState.new(l)).to_s
-        0
+    # :nodoc:
+    LUA_ATPANIC_PROC = CFunction.new do |l|
+      state = LuaState.new(l)
+      err_message = String.build do |str|
+        str << "PANIC: "
+        if state.is_string?(-1)
+          str << state.to_string(-1)
+          state.pop(1)
+        else
+          str << "Unknown"
+        end
+        str << '\n'
       end
-      state
+      STDERR.puts err_message
+      0
+    end
+
+    def self.create : LuaState
+      new(LibLuaJIT.luaL_newstate).tap do |state|
+        state.at_panic(&LUA_ATPANIC_PROC)
+        set_registry_address(state)
+      end
+    end
+
+    def self.destroy(state : LuaState) : Nil
+      begin
+        Trackable.remove(pointer_address(state))
+      ensure
+        state.close
+      end
     end
 
     def initialize(@ptr)
@@ -208,17 +229,30 @@ module Luajit
     #
     # Follows the semantics of the Lua `==` operator (i.e. may call metamethods)
     #
+    # Raises `LuaProtectedError` if underlying operation failed
+    #
     # Lua: `lua_equal`, `[-0, +0, e]`
     def eq(index1 : Int32, index2 : Int32) : Bool
       LibLuaJIT.lua_pushcclosure(self, LUA_EQUAL_PROC, 0)
       push_value(index1)
       push_value(index2)
       status = pcall(2, 1)
-      unless status.ok?
-        raise LuaAPIError.new
-      end
+      raise LuaProtectedError.new(self, status, "lua_equal") unless status.ok?
       to_boolean(-1).tap do
         pop(1)
+      end
+    end
+
+    # Returns `true` if the two values in indices *index1* and *index2* are equal, else returns `nil`
+    #
+    # Follows the semantics of the Lua `==` operator (i.e. may call metamethods)
+    #
+    # Lua: `lua_equal`, `[-0, +0, e]`
+    def eq?(index1 : Int32, index2 : Int32) : Bool?
+      begin
+        eq(index1, index2)
+      rescue
+        nil
       end
     end
 
@@ -244,17 +278,30 @@ module Luajit
     #
     # Follows the semantics of the Lua `<` operator (i.e. may call metamethods)
     #
+    # Raises `LuaProtectedError` if underlying operation failed
+    #
     # Lua: `lua_lessthan`, `[-0, +0, e]`
     def less_than(index1 : Int32, index2 : Int32) : Bool
       LibLuaJIT.lua_pushcclosure(self, LUA_LESSTHAN_PROC, 0)
       push_value(index1)
       push_value(index2)
       status = pcall(2, 1)
-      unless status.ok?
-        raise LuaAPIError.new
-      end
+      raise LuaProtectedError.new(self, status, "lua_lessthan") unless status.ok?
       to_boolean(-1).tap do
         pop(1)
+      end
+    end
+
+    # Returns `true` if the value at *index1* is smaller than the value at *index2*, else returns `nil`
+    #
+    # Follows the semantics of the Lua `<` operator (i.e. may call metamethods)
+    #
+    # Lua: `lua_lessthan`, `[-0, +0, e]`
+    def less_than?(index1 : Int32, index2 : Int32) : Bool?
+      begin
+        less_than(index1, index2)
+      rescue
+        nil
       end
     end
 
@@ -435,29 +482,29 @@ module Luajit
     ### DEBUGGER FUNCTIONS
 
     # Lua: `lua_getstack`, `[-0, +0, -]`
-    def get_stack(level : Int32) : Debug?
+    def get_stack(level : Int32) : LuaDebug?
       if LibLuaJIT.lua_getstack(self, level, out ar) == true.to_unsafe
-        ar
+        LuaDebug.new(ar)
       end
     end
 
     # Lua: `lua_getinfo`, `[-(0|1), +(0|1|2), m]`
-    def get_info(what : String, ar : Debug) : Debug?
-      if LibLuaJIT.lua_getinfo(self, what, pointerof(ar)) != 0
+    def get_info(what : String, ar : LuaDebug) : LuaDebug?
+      if LibLuaJIT.lua_getinfo(self, what, ar) != 0
         ar
       end
     end
 
     # Lua: `lua_getlocal`, `[-0, +(0|1), -]`
-    def get_local(ar : Debug, n : Int32 = 1) : String?
-      if ptr = LibLuaJIT.lua_getlocal(self, pointerof(ar), n)
+    def get_local(ar : LuaDebug, n : Int32 = 1) : String?
+      if ptr = LibLuaJIT.lua_getlocal(self, ar, n)
         String.new(ptr)
       end
     end
 
     # Lua: `lua_setlocal`, `[-(0|1), +0, -]`
-    def set_local(ar : Debug, n : Int32 = 1) : String?
-      if ptr = LibLuaJIT.lua_setlocal(self, pointerof(ar), n)
+    def set_local(ar : LuaDebug, n : Int32 = 1) : String?
+      if ptr = LibLuaJIT.lua_setlocal(self, ar, n)
         String.new(ptr)
       end
     end
@@ -504,12 +551,20 @@ module Luajit
     # :nodoc:
     #
     # TODO
-    def print_stack : Nil
-      count = -1
-      size.downto(1) do |index|
-        puts "(#{count}) [#{index}]: #{get_type(index)}"
-        count -= 1
+    def print_stack(uniq_value : String? = nil) : Nil
+      puts "####{uniq_value || ""}"
+      total = size
+      if total == 0
+        puts "# [0]"
+      else
+        count = -1
+        total.downto(1) do |index|
+          puts "# (#{count}) [#{index}]: #{get_type(index)}"
+          count -= 1
+        end
       end
+      puts "###"
+      puts
     end
 
     ### GC FUNCTIONS
@@ -529,13 +584,22 @@ module Luajit
       1
     end
 
+    # Raises `LuaProtectedError` if underlying operation failed
+    #
     # Lua: `lua_gettable`, `[-1, +1, e]`
     def get_table(index : Int32) : Nil
       LibLuaJIT.lua_pushcclosure(self, LUA_GETTABLE_PROC, 0)
       push(index)
       status = pcall(1, 1)
-      unless status.ok?
-        raise LuaAPIError.new
+      raise LuaProtectedError.new(self, status, "lua_gettable") unless status.ok?
+    end
+
+    # Lua: `lua_gettable`, `[-1, +1, e]`
+    def get_table?(index : Int32) : Nil
+      begin
+        get_table(index)
+      rescue
+        nil
       end
     end
 
@@ -548,6 +612,8 @@ module Luajit
       1
     end
 
+    # Raises `LuaProtectedError` if underlying operation failed
+    #
     # Lua: `lua_getfield`, `[-0, +1, e]`
     def get_field(index : Int32, name : String) : Nil
       case index
@@ -564,8 +630,15 @@ module Luajit
       insert(-2)
       push(name)
       status = pcall(2, 1)
-      unless status.ok?
-        raise LuaAPIError.new
+      raise LuaProtectedError.new(self, status, "lua_getfield") unless status.ok?
+    end
+
+    # Lua: `lua_getfield`, `[-0, +1, e]`
+    def get_field?(index : Int32, name : String) : Nil
+      begin
+        get_field(index, name)
+      rescue
+        nil
       end
     end
 
@@ -577,12 +650,19 @@ module Luajit
       1
     end
 
+    # Raises `LuaProtectedError` if underlying operation failed
     def get_global(name : String) : Nil
       LibLuaJIT.lua_pushcclosure(self, LUA_GETGLOBAL_PROC, 0)
       push(name)
       status = pcall(1, 1)
-      unless status.ok?
-        raise LuaAPIError.new
+      raise LuaProtectedError.new(self, status, "LuaState#get_global") unless status.ok?
+    end
+
+    def get_global?(name : String) : Nil
+      begin
+        get_global(name)
+      rescue
+        nil
       end
     end
 
@@ -594,12 +674,19 @@ module Luajit
       1
     end
 
+    # Raises `LuaProtectedError` if underlying operation failed
     def get_registry(name : String) : Nil
       LibLuaJIT.lua_pushcclosure(self, LUA_GETREGISTRY_PROC, 0)
       push(name)
       status = pcall(1, 1)
-      unless status.ok?
-        raise LuaAPIError.new
+      raise LuaProtectedError.new(self, status, "LuaState#get_registry") unless status.ok?
+    end
+
+    def get_registry?(name : String) : Nil
+      begin
+        get_registry(name)
+      rescue
+        nil
       end
     end
 
@@ -616,12 +703,19 @@ module Luajit
       1
     end
 
+    # Raises `LuaProtectedError` if underlying operation failed
     def get_environment(name : String) : Nil
       LibLuaJIT.lua_pushcclosure(self, LUA_GETENVIRONMENT_PROC, 0)
       push(name)
       status = pcall(1, 1)
-      unless status.ok?
-        raise LuaAPIError.new
+      raise LuaProtectedError.new(self, status, "LuaState#get_environment") unless status.ok?
+    end
+
+    def get_environment?(name : String) : Nil
+      begin
+        get_environment(name)
+      rescue
+        nil
       end
     end
 
@@ -693,11 +787,23 @@ module Luajit
       status
     end
 
+    # Raises `LuaProtectedError` if underlying operation failed
+    def execute!(str : String) : Nil
+      status = execute(str)
+      raise LuaProtectedError.new(self, status, "LuaState#execute!(String)") unless status.ok?
+    end
+
     # Lua: `luaL_dofile`, `[-0, +?, m]`
     def execute(path : Path) : LuaStatus
       status = LuaStatus.new(LibLuaJIT.luaL_loadfile(self, path.to_s))
       return pcall(0, LibLuaJIT::LUA_MULTRET) if status.ok?
       status
+    end
+
+    # Raises `LuaProtectedError` if underlying operation failed
+    def execute!(path : Path) : Nil
+      status = execute(path)
+      raise LuaProtectedError.new(self, status, "LuaState#execute!(Path)") unless status.ok?
     end
 
     ### OTHER FUNCTIONS
@@ -716,6 +822,8 @@ module Luajit
       3
     end
 
+    # Raises `LuaProtectedError` if underlying operation failed
+    #
     # Lua: `lua_next`, `[-1, +(2|0), e]`
     def next(index : Int32) : Bool
       push_value(index)
@@ -723,12 +831,18 @@ module Luajit
       LibLuaJIT.lua_pushcclosure(self, LUA_NEXT_PROC, 0)
       insert(-3)
       status = pcall(2, 3)
-      unless status.ok?
-        raise LuaAPIError.new
-      end
+      raise LuaProtectedError.new(self, status, "lua_next") unless status.ok?
       to_boolean(-1).tap do |result|
         pop(1)
         pop(2) unless result
+      end
+    end
+
+    def next?(index : Int32) : Bool?
+      begin
+        self.next(index)
+      rescue
+        nil
       end
     end
 
@@ -740,6 +854,8 @@ module Luajit
       1
     end
 
+    # Raises `LuaProtectedError` if underlying operation failed
+    #
     # Lua: `lua_concat`, `[-n, +1, e]`
     def concat(n : Int32) : Nil
       if n < 1
@@ -751,8 +867,14 @@ module Luajit
       LibLuaJIT.lua_pushcclosure(self, LUA_CONCAT_PROC, 0)
       insert(-(n) - 1)
       status = pcall(n, 1)
-      unless status.ok?
-        raise LuaAPIError.new
+      raise LuaProtectedError.new(self, status, "lua_concat") unless status.ok?
+    end
+
+    def concat?(n : Int32) : Nil
+      begin
+        concat(n)
+      rescue
+        nil
       end
     end
 
@@ -800,15 +922,10 @@ module Luajit
       track(box)
       proc = CFunction.new do |l|
         state = LuaState.new(l)
-        if ud = state.to_userdata?(state.up_value(1))
-          state.pop(1)
-          begin
-            Box(typeof(block)).unbox(ud).call(state)
-          rescue err
-            LibLuaJIT.luaL_error(state, err.inspect)
-          end
-        else
-          LibLuaJIT.luaL_error(state, "UserData not found")
+        begin
+          Box(typeof(block)).unbox(state.to_userdata!(state.up_value(1))).call(state)
+        rescue err
+          LibLuaJIT.luaL_error(state, err.inspect)
         end
       end
       push(box)
@@ -861,6 +978,8 @@ module Luajit
       0
     end
 
+    # Raises `LuaProtectedError` if underlying operation failed
+    #
     # Lua: `lua_settable`, `[-2, +0, e]`
     def set_table(index : Int32) : Nil
       push_value(index)
@@ -868,8 +987,14 @@ module Luajit
       LibLuaJIT.lua_pushcclosure(self, LUA_SETTABLE_PROC, 0)
       insert(-4)
       status = pcall(3, 0)
-      unless status.ok?
-        raise LuaAPIError.new
+      raise LuaProtectedError.new(self, status, "lua_settable") unless status.ok?
+    end
+
+    def set_table?(index : Int32) : Nil
+      begin
+        set_table(index)
+      rescue
+        nil
       end
     end
 
@@ -882,6 +1007,8 @@ module Luajit
       0
     end
 
+    # Raises `LuaProtectedError` if underlying operation failed
+    #
     # Lua: `lua_setfield`, `[-1, +0, e]`
     def set_field(index : Int32, k : String) : Nil
       case index
@@ -899,8 +1026,14 @@ module Luajit
       insert(-3)
       push(k)
       status = pcall(3, 0)
-      unless status.ok?
-        raise LuaAPIError.new
+      raise LuaProtectedError.new(self, status, "lua_setfield") unless status.ok?
+    end
+
+    def set_field?(index : Int32, k : String) : Nil
+      begin
+        set_field(index, k)
+      rescue
+        nil
       end
     end
 
@@ -913,14 +1046,22 @@ module Luajit
       0
     end
 
+    # Raises `LuaProtectedError` if underlying operation failed
+    #
     # Lua: `lua_setglobal`, `[-1, +0, e]`
     def set_global(name : String) : Nil
       LibLuaJIT.lua_pushcclosure(self, LUA_SETGLOBAL_PROC, 0)
       insert(-2)
       push(name)
       status = pcall(2, 0)
-      unless status.ok?
-        raise LuaAPIError.new
+      raise LuaProtectedError.new(self, status, "lua_setglobal") unless status.ok?
+    end
+
+    def set_global?(name : String) : Nil
+      begin
+        set_global(name)
+      rescue
+        nil
       end
     end
 
@@ -933,13 +1074,20 @@ module Luajit
       0
     end
 
+    # Raises `LuaProtectedError` if underlying operation failed
     def set_registry(name : String) : Nil
       LibLuaJIT.lua_pushcclosure(self, LUA_SETREGISTRY_PROC, 0)
       insert(-2)
       push(name)
       status = pcall(2, 0)
-      unless status.ok?
-        raise LuaAPIError.new
+      raise LuaProtectedError.new(self, status, "LuaState#set_registry") unless status.ok?
+    end
+
+    def set_registry?(name : String) : Nil
+      begin
+        set_registry(name)
+      rescue
+        nil
       end
     end
 
@@ -952,13 +1100,20 @@ module Luajit
       0
     end
 
+    # Raises `LuaProtectedError` if underlying operation failed
     def set_environment(name : String) : Nil
       LibLuaJIT.lua_pushcclosure(self, LUA_SETENVIRONMENT_PROC, 0)
       insert(-2)
       push(name)
       status = pcall(2, 0)
-      unless status.ok?
-        raise LuaAPIError.new
+      raise LuaProtectedError.new(self, status, "LuaState#set_environment") unless status.ok?
+    end
+
+    def set_environment?(name : String) : Nil
+      begin
+        set_environment(name)
+      rescue
+        nil
       end
     end
 
@@ -998,15 +1153,26 @@ module Luajit
       LibLuaJIT.luaL_getmetafield(self, obj, e) != 0
     end
 
+    # Raises `LuaProtectedError` if underlying operation failed
+    #
     # Lua: `luaL_callmeta`, `[-0, +(0|1), e]`
     def call_metamethod(obj : Int32, event : String) : Bool
       obj = abs_index(obj)
       if get_metafield(obj, event)
         push_value(obj)
-        raise LuaAPIError.new unless pcall(1, 1).ok?
+        status = pcall(1, 1)
+        raise LuaProtectedError.new(self, status, "LuaState#call_metamethod") unless status.ok?
         true
       else
         false
+      end
+    end
+
+    def call_metamethod?(obj : Int32, event : String) : Bool?
+      begin
+        call_metamethod(obj, event)
+      rescue
+        nil
       end
     end
 
@@ -1040,23 +1206,23 @@ module Luajit
     # Lua: `luaL_argerror`
     def raise_arg_error(pos : Int32, reason : String)
       if ar = get_stack(0)
-        if ar = get_info("n", ar)
-          if String.new(ar.namewhat || Bytes[]) == "method"
+        if ar2 = get_info("n", ar)
+          if String.new(ar2.namewhat || Bytes[]) == "method"
             pos -= 1 # do not count `self`
             if pos == 0 # error is in the self argument itself?
-              raise "calling '#{String.new(ar.name || Bytes[])}' on bad self (#{reason})"
+              raise LuaArgumentError.new("calling '#{String.new(ar2.name || Bytes[])}' on bad self (#{reason})")
             end
           end
         end
-        raise "bad argument ##{pos} to '#{String.new(ar.name || "?".to_slice)}' (#{reason})"
+        raise LuaArgumentError.new("bad argument ##{pos} to '#{String.new(ar.name || "?".to_slice)}' (#{reason})")
       else # no stack frame?
-        raise "bad argument ##{pos} (#{reason})"
+        raise LuaArgumentError.new("bad argument ##{pos} to (#{reason})")
       end
     end
 
     # Lua: `luaL_typerror`
     def raise_type_error(pos : Int32, type : String)
-      raise_arg_error(pos, "#{type} expected, got #{type_name_at(pos)}")
+      raise_arg_error(pos, "'#{type}' expected, got '#{type_name_at(pos)}'")
     end
 
     # Lua: `luaL_checkany`
@@ -1125,8 +1291,12 @@ module Luajit
       assert_type?(index, :thread)
     end
 
+    def assert_userdata?(index : Int32) : Nil
+      assert_type?(index, :userdata)
+    end
+
     # Lua: `luaL_checkudata`
-    def assert_userdata?(index : Int32, type : String) : Nil
+    def check_userdata?(index : Int32, type : String) : Nil
       if to_userdata?(index) # value is a userdata?
         if get_metatable(index) # does it have a metatable?
           get_registry(type) # get correct metatable
@@ -1139,8 +1309,39 @@ module Luajit
       raise_type_error(index, type) # else error
     end
 
-    def assert_userdata?(index : Int32) : Nil
-      assert_type?(index, :userdata)
+    def create_userdata(value : U) : Nil forall U
+      # create box
+      box = Box(U).box(value)
+      # track box
+      track(box)
+      # create userdata
+      ud_size = sizeof(Box(U)).to_u64
+      ud_ptr = new_userdata(ud_size).as(Pointer(typeof(box)))
+      ud_ptr.value = box
+      # create metatable
+      new_metatable(LuaState.metatable_name({{ U.name.stringify }}))
+      # set copy of metatable
+      push_value(-1)
+      set_metatable(-3)
+      # define metamethods for metatable
+      push("__gc")
+      push do |s|
+        s.untrack(box)
+        0
+      end
+      raw_set(-3)
+      pop(1)
+    end
+
+    def get_userdata(_type : U.class, index : Int32) : U forall U
+      ud_ptr = get_raw_userdata(U, index).as(Pointer(Pointer(Void)))
+      Box(U).unbox(ud_ptr.value)
+    end
+
+    def get_raw_userdata(_type : U.class, index : Int32) : Pointer(Void) forall U
+      mt_name = LuaState.metatable_name({{ U.name.stringify }})
+      check_userdata?(index, mt_name)
+      to_userdata!(index)
     end
 
     ### REFERENCE FUNCTIONS
@@ -1169,53 +1370,14 @@ module Luajit
 
     ### TRACKING FUNCTIONS
 
-    # Same as `Luajit.add_trackable`
+    # Add pointer to be tracked by Crystal
     def track(ptr : Pointer(Void)) : Nil
-      Luajit.add_trackable(get_registry_address, ptr)
+      Trackable.track(get_registry_address, ptr)
     end
 
-    def create_userdata(value, name : String) : Nil
-      # create userdata pointer
-      ud_ptr = LibLuaJIT.lua_newuserdata(self, sizeof(typeof(value)))
-      # assign value to userdata pointer
-      ud_ptr.as(Pointer(typeof(value))).value = value
-      # store index of userdata
-      ud_index = size
-      # get metatable name
-      meta_name = LuaState.metatable_name(name)
-      # user metatable name to add to stack
-      get_metatable(meta_name)
-      # set metatable to userdata
-      set_metatable(ud_index)
-    end
-
-    def create_userdata(ref : Reference, name : String) : Nil
-      track(Box.box(ref))
-      # create userdata pointer
-      ud_ptr = LibLuaJIT.lua_newuserdata(self, sizeof(typeof(ref)))
-      # assign ref to userdata pointer
-      ud_ptr.as(Pointer(typeof(ref))).value = ref
-      # store index of userdata
-      ud_index = size
-      # get metatable name
-      meta_name = LuaState.metatable_name(name)
-      # user metatable name to add to stack
-      get_metatable(meta_name)
-      # set metatable to userdata
-      set_metatable(ud_index)
-    end
-
-    # Same as `Luajit.remove_trackable`
-    def untrack(ref : Reference) : Nil
-      Luajit.remove_trackable(get_registry_address, ref)
-    end
-
-    def destroy_userdata(ref : Reference) : Nil
-      untrack(ref)
-    end
-
-    def get_userdata(_type : U.class, index : Int32) : U forall U
-      to_userdata(index).as(Pointer(U)).value
+    # Remove pointer tracked by Crystal
+    def untrack(ptr : Pointer(Void)) : Nil
+      Trackable.untrack(get_registry_address, ptr)
     end
 
     ### WRAPPER FUNCTIONS
