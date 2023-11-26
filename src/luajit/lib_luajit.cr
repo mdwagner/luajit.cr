@@ -79,7 +79,7 @@ module Luajit
 
     struct Reg
       name : Char*
-      func : CFunction
+      func : Void* # CFunction
     end
 
     enum LuajitMode
@@ -250,4 +250,6 @@ module Luajit
     fun luaopen_ffi(l : State*) : Int
     fun luaopen_jit(l : State*) : Int
   end
+
+  alias LuaCFunction = LibLuaJIT::CFunction
 end

@@ -18,7 +18,7 @@ module Luajit
       Tail # function that did a tail call
     end
 
-    def initialize(@debug)
+    protected def initialize(@debug)
     end
 
     def to_unsafe

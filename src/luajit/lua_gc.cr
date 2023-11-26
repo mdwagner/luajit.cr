@@ -3,11 +3,11 @@ module Luajit
   struct LuaGC
     @state : LuaState
 
-    def initialize(@state)
+    protected def initialize(@state)
     end
 
     # :nodoc:
-    LUA_GCSTOP_PROC = LibLuaJIT::CFunction.new do |l|
+    LUA_GCSTOP_PROC = LuaCFunction.new do |l|
       LibLuaJIT.lua_gc(l, LibLuaJIT::LUA_GCSTOP, 0)
       0
     end
@@ -20,7 +20,7 @@ module Luajit
     end
 
     # :nodoc:
-    LUA_GCRESTART_PROC = LibLuaJIT::CFunction.new do |l|
+    LUA_GCRESTART_PROC = LuaCFunction.new do |l|
       LibLuaJIT.lua_gc(l, LibLuaJIT::LUA_GCRESTART, 0)
       0
     end
@@ -33,7 +33,7 @@ module Luajit
     end
 
     # :nodoc:
-    LUA_GCCOLLECT_PROC = LibLuaJIT::CFunction.new do |l|
+    LUA_GCCOLLECT_PROC = LuaCFunction.new do |l|
       LibLuaJIT.lua_gc(l, LibLuaJIT::LUA_GCCOLLECT, 0)
       0
     end
@@ -46,7 +46,7 @@ module Luajit
     end
 
     # :nodoc:
-    LUA_GCCOUNT_PROC = LibLuaJIT::CFunction.new do |l|
+    LUA_GCCOUNT_PROC = LuaCFunction.new do |l|
       state = LuaState.new(l)
       state.push(LibLuaJIT.lua_gc(state, LibLuaJIT::LUA_GCCOUNT, 0))
       1
@@ -63,7 +63,7 @@ module Luajit
     end
 
     # :nodoc:
-    LUA_GCCOUNTB_PROC = LibLuaJIT::CFunction.new do |l|
+    LUA_GCCOUNTB_PROC = LuaCFunction.new do |l|
       state = LuaState.new(l)
       state.push(LibLuaJIT.lua_gc(state, LibLuaJIT::LUA_GCCOUNTB, 0))
       1
@@ -80,7 +80,7 @@ module Luajit
     end
 
     # :nodoc:
-    LUA_GCSTEP_PROC = LibLuaJIT::CFunction.new do |l|
+    LUA_GCSTEP_PROC = LuaCFunction.new do |l|
       state = LuaState.new(l)
       size = state.to_i(-1)
       state.pop(1)
@@ -105,7 +105,7 @@ module Luajit
     end
 
     # :nodoc:
-    LUA_GCSETPAUSE_PROC = LibLuaJIT::CFunction.new do |l|
+    LUA_GCSETPAUSE_PROC = LuaCFunction.new do |l|
       state = LuaState.new(l)
       data = state.to_i(-1)
       state.pop(1)
@@ -127,7 +127,7 @@ module Luajit
     end
 
     # :nodoc:
-    LUA_GCSETSTEPMUL_PROC = LibLuaJIT::CFunction.new do |l|
+    LUA_GCSETSTEPMUL_PROC = LuaCFunction.new do |l|
       state = LuaState.new(l)
       data = state.to_i(-1)
       state.pop(1)
