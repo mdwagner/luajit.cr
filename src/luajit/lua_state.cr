@@ -1386,25 +1386,49 @@ module Luajit
     ### REFERENCE FUNCTIONS
 
     # Lua: `luaL_ref`, `[-1, +0, m]`
-    def create_ref(index : Int32) : Int32
+    def ref(index : Int32) : Int32
       LibLuaJIT.luaL_ref(self, index)
     end
 
     # Lua: `luaL_unref`, `[-0, +0, -]`
-    def remove_ref(index : Int32, ref : Int32) : Nil
+    def unref(index : Int32, ref : Int32) : Nil
       LibLuaJIT.luaL_unref(self, index, ref)
     end
 
-    def create_registry_ref : Int32
-      create_ref(LibLuaJIT::LUA_REGISTRYINDEX)
+    def create_ref : LuaRef
+      type = get_type(-1)
+      ref_id = ref(LibLuaJIT::LUA_REGISTRYINDEX)
+      if ref_id == LibLuaJIT::LUA_REFNIL
+        raise LuaArgumentError.new("value at top of stack was 'nil'")
+      elsif ref_id == LibLuaJIT::LUA_NOREF
+        raise LuaArgumentError.new("ref cannot be created")
+      end
+      LuaRef.new(ref_id, type)
     end
 
-    def remove_registry_ref(ref : Int32) : Nil
-      remove_ref(LibLuaJIT::LUA_REGISTRYINDEX, ref)
+    def remove_ref(r : LuaRef) : Nil
+      unref(LibLuaJIT::LUA_REGISTRYINDEX, r.ref)
     end
 
-    def get_registry_ref(ref : Int32) : Nil
-      raw_get_index(LibLuaJIT::LUA_REGISTRYINDEX, ref)
+    def remove_ref(any : LuaAny) : Nil
+      if r = any.as_ref?
+        remove_ref(r)
+      end
+    end
+
+    def remove_refs(hash : Hash(String | Float64, LuaAny)) : Nil
+      hash.values.each do |any|
+        remove_ref(any)
+      end
+    end
+
+    def get_ref_value(r : LuaRef) : Nil
+      raw_get_index(LibLuaJIT::LUA_REGISTRYINDEX, r.ref)
+    end
+
+    def ref_to_h(r : LuaRef) : Hash(String | Float64, LuaAny)
+      get_ref_value(r)
+      to_h(-1)
     end
 
     ### TRACKING FUNCTIONS
@@ -1421,30 +1445,42 @@ module Luajit
 
     ### WRAPPER FUNCTIONS
 
-    def to_any?(index : Int32 = -1) : LuaAny?
+    def to_any?(index : Int32) : LuaAny?
       case type = get_type(index)
-      in .number?
+      when .number?
         LuaAny.new(to_f(index))
-      in .boolean?
+      when .boolean?
         LuaAny.new(to_boolean(index))
-      in .string?
+      when .string?
         LuaAny.new(to_string(index))
-      in .light_userdata?, .function?, .userdata?, .thread?
+      when .light_userdata?, .function?, .userdata?, .thread?, .table?
         push_value(index)
-        LuaAny.new(LuaRef.new(create_registry_ref, type))
-      in .table?
-        LuaAny.new(to_h)
-      in .none?, LuaType::Nil
+        LuaAny.new(create_ref)
+      else
         nil
       end
     end
 
-    def to_h : Hash(String | Float64, LuaAny)
-      LuaTableIterator.new(self).to_h
+    def to_h(index : Int32) : Hash(String | Float64, LuaAny)
+      push_value(index)
+      LuaTableIterator.new(self).to_h.tap do
+        pop(1)
+      end
     end
 
-    def to_a : Array(LuaAny)
-      LuaAny.to_a(to_h)
+    def to_a(index : Int32) : Array(LuaAny)
+      hash = to_h(index)
+      total = hash.keys.count { |k| k.is_a?(Float64) && k > 0 && k % 1 == 0 }
+      Array(LuaAny).new(total).tap do |arr|
+        total.times do |n|
+          i = n + 1
+          if value = hash[i]?
+            arr << value
+          else
+            break
+          end
+        end
+      end
     end
   end
 end

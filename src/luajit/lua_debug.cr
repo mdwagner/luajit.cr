@@ -38,32 +38,18 @@ module Luajit
 
     # Explains `#name` type according to how the function was called
     def name_type : NameType
-      case String.new(@debug.namewhat || Bytes[])
-      when "global"
-        :global
-      when "local"
-        :local
-      when "method"
-        :method
-      when "field"
-        :field
-      when "upvalue"
-        :upvalue
-      else
-        :none
+      begin
+        NameType.parse(String.new(@debug.namewhat || Bytes[]))
+      rescue ArgumentError
+        NameType::None
       end
     end
 
     def function_type : FunctionType
-      case String.new(@debug.what || Bytes[])
-      when "Lua"
-        :lua
-      when "C"
-        :c
-      when "main"
-        :main
-      else
-        :tail
+      begin
+        FunctionType.parse(String.new(@debug.what || Bytes[]))
+      rescue ArgumentError
+        FunctionType::Tail
       end
     end
 
