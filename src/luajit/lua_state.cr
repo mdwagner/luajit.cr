@@ -949,6 +949,12 @@ module Luajit
       LibLuaJIT.lua_pushcclosure(self, proc, 1)
     end
 
+    def push(callback : Function) : Nil
+      push do |state|
+        callback.call(state)
+      end
+    end
+
     # Lua: `lua_pushboolean`, `[-0, +1, -]`
     def push(x : Bool) : Nil
       LibLuaJIT.lua_pushboolean(self, x)
@@ -1134,6 +1140,8 @@ module Luajit
       end
     end
 
+    # Registers a global function
+    #
     # Lua: `lua_register`
     def register_global(name : String, &block : Function) : Nil
       push(&block)
@@ -1141,26 +1149,34 @@ module Luajit
     end
 
     # Lua: `luaL_register`, `[-(0|1), +1, m]`
-    def register_library(name : String, regs : Array(LuaReg)) : Nil
+    def register(name : String, regs : Array(LuaReg)) : Nil
       libs = [] of LibLuaJIT::Reg
       regs.each do |reg|
         libs << LibLuaJIT::Reg.new(name: reg.name, func: reg.function.pointer)
       end
       libs << LibLuaJIT::Reg.new(name: Pointer(UInt8).null, func: Pointer(Void).null)
-
       LibLuaJIT.luaL_register(self, name, libs)
     end
 
-    # :ditto:
-    def register_table_functions(regs : Array(LuaReg)) : Nil
+    # Lua: `luaL_register`, `[-(0|1), +1, m]`
+    def register(regs : Array(LuaReg)) : Nil
       libs = [] of LibLuaJIT::Reg
       regs.each do |reg|
         libs << LibLuaJIT::Reg.new(name: reg.name, func: reg.function.pointer)
       end
       libs << LibLuaJIT::Reg.new(name: Pointer(UInt8).null, func: Pointer(Void).null)
-
       LibLuaJIT.luaL_register(self, Pointer(UInt8).null, libs)
     end
+
+    # TODO
+    # Lua Compat 5.3
+    #def get_subtable(index : Int32, fname : String) : Bool
+    #end
+
+    # TODO
+    # Lua Compat 5.3
+    #def requiref(modname : String, openf : LuaCFunction, glb : Bool = false) : Nil
+    #end
 
     # Lua: `lua_rawset`, `[-2, +0, m]`
     def raw_set(index : Int32) : Nil
@@ -1215,11 +1231,12 @@ module Luajit
       end
     end
 
-    private def abs_index(i : Int32) : Int32
-      if i > 0 || i <= LibLuaJIT::LUA_REGISTRYINDEX
-        i
+    # Lua Compat 5.3
+    def abs_index(index : Int32) : Int32
+      if index > 0 || index <= LibLuaJIT::LUA_REGISTRYINDEX
+        index
       else
-        size + i + 1
+        size + index + 1
       end
     end
 
