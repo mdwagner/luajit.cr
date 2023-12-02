@@ -933,14 +933,13 @@ module Luajit
       push(x.to_s)
     end
 
-    def push(x : LuaCFunction | Function) : Nil
-      case x
-      in LuaCFunction
-        LibLuaJIT.lua_pushcclosure(self, x, 0)
-      in Function
-        push_fn_closure do |state|
-          x.call(state)
-        end
+    def push(x : LuaCFunction) : Nil
+      LibLuaJIT.lua_pushcclosure(self, x, 0)
+    end
+
+    def push(x : Function) : Nil
+      push_fn_closure do |state|
+        x.call(state)
       end
     end
 
