@@ -234,7 +234,7 @@ module Luajit
     def eq(index1 : Int32, index2 : Int32) : Bool
       push_value(index1)
       push_value(index2 < 0 ? index2 - 1 : index2)
-      LibLuaJIT.lua_pushcclosure(self, LUA_EQUAL_PROC, 0)
+      push(LUA_EQUAL_PROC)
       insert(-3)
       status = pcall(2, 1)
       raise LuaProtectedError.new(self, status, "lua_equal") unless status.ok?
@@ -284,7 +284,7 @@ module Luajit
     def less_than(index1 : Int32, index2 : Int32) : Bool
       push_value(index1)
       push_value(index2 < 0 ? index2 - 1 : index2)
-      LibLuaJIT.lua_pushcclosure(self, LUA_LESSTHAN_PROC, 0)
+      push(LUA_LESSTHAN_PROC)
       insert(-3)
       status = pcall(2, 1)
       raise LuaProtectedError.new(self, status, "lua_lessthan") unless status.ok?
@@ -521,19 +521,19 @@ module Luajit
     end
 
     # Lua: `lua_getupvalue`, `[-0, +(0|1), -]`
-    def get_up_value(fn_index : Int32, n : Int32) : String?
+    def get_upvalue(fn_index : Int32, n : Int32) : String?
       if ptr = LibLuaJIT.lua_getupvalue(self, fn_index, n)
         String.new(ptr)
       end
     end
 
     # Lua: `lua_upvalueindex`
-    def up_value(index : Int32) : Int32
+    def upvalue(index : Int32) : Int32
       LibLuaJIT::LUA_GLOBALSINDEX - index
     end
 
     # Lua: `lua_setupvalue`, `[-(0|1), +0, -]`
-    def set_up_value(fn_index : Int32, n : Int32) : String?
+    def set_upvalue(fn_index : Int32, n : Int32) : String?
       if ptr = LibLuaJIT.lua_setupvalue(self, fn_index, n)
         String.new(ptr)
       end
@@ -600,7 +600,7 @@ module Luajit
     def get_table(table_index : Int32) : Nil
       push_value(table_index)
       insert(-2)
-      LibLuaJIT.lua_pushcclosure(self, LUA_GETTABLE_PROC, 0)
+      push(LUA_GETTABLE_PROC)
       insert(-3)
       status = pcall(2, 1)
       raise LuaProtectedError.new(self, status, "lua_gettable") unless status.ok?
@@ -638,7 +638,7 @@ module Luajit
       end
 
       push_value(index)
-      LibLuaJIT.lua_pushcclosure(self, LUA_GETFIELD_PROC, 0)
+      push(LUA_GETFIELD_PROC)
       insert(-2)
       push(name)
       status = pcall(2, 1)
@@ -664,7 +664,7 @@ module Luajit
 
     # Raises `LuaProtectedError` if underlying operation failed
     def get_global(name : String) : Nil
-      LibLuaJIT.lua_pushcclosure(self, LUA_GETGLOBAL_PROC, 0)
+      push(LUA_GETGLOBAL_PROC)
       push(name)
       status = pcall(1, 1)
       raise LuaProtectedError.new(self, status, "LuaState#get_global") unless status.ok?
@@ -688,7 +688,7 @@ module Luajit
 
     # Raises `LuaProtectedError` if underlying operation failed
     def get_registry(name : String) : Nil
-      LibLuaJIT.lua_pushcclosure(self, LUA_GETREGISTRY_PROC, 0)
+      push(LUA_GETREGISTRY_PROC)
       push(name)
       status = pcall(1, 1)
       raise LuaProtectedError.new(self, status, "LuaState#get_registry") unless status.ok?
@@ -717,7 +717,7 @@ module Luajit
 
     # Raises `LuaProtectedError` if underlying operation failed
     def get_environment(name : String) : Nil
-      LibLuaJIT.lua_pushcclosure(self, LUA_GETENVIRONMENT_PROC, 0)
+      push(LUA_GETENVIRONMENT_PROC)
       push(name)
       status = pcall(1, 1)
       raise LuaProtectedError.new(self, status, "LuaState#get_environment") unless status.ok?
@@ -845,7 +845,7 @@ module Luajit
     def next(index : Int32) : Bool
       push_value(index)
       insert(-2)
-      LibLuaJIT.lua_pushcclosure(self, LUA_NEXT_PROC, 0)
+      push(LUA_NEXT_PROC)
       insert(-3)
       status = pcall(2, 3)
       raise LuaProtectedError.new(self, status, "lua_next") unless status.ok?
@@ -881,7 +881,7 @@ module Luajit
         return
       end
 
-      LibLuaJIT.lua_pushcclosure(self, LUA_CONCAT_PROC, 0)
+      push(LUA_CONCAT_PROC)
       insert(-(n) - 1)
       status = pcall(n, 1)
       raise LuaProtectedError.new(self, status, "lua_concat") unless status.ok?
@@ -933,25 +933,14 @@ module Luajit
       push(x.to_s)
     end
 
-    # Lua: `lua_pushcclosure`, `[-n, +1, m]`
-    def push(&block : Function) : Nil
-      box = Box(typeof(block)).box(block)
-      track(box)
-      proc = LuaCFunction.new do |l|
-        state = LuaState.new(l)
-        begin
-          Box(typeof(block)).unbox(state.to_userdata!(state.up_value(1))).call(state)
-        rescue err
-          LibLuaJIT.luaL_error(state, err.inspect)
+    def push(x : LuaCFunction | Function) : Nil
+      case x
+      in LuaCFunction
+        LibLuaJIT.lua_pushcclosure(self, x, 0)
+      in Function
+        push_fn_closure do |state|
+          x.call(state)
         end
-      end
-      push(box)
-      LibLuaJIT.lua_pushcclosure(self, proc, 1)
-    end
-
-    def push(callback : Function) : Nil
-      push do |state|
-        callback.call(state)
       end
     end
 
@@ -963,15 +952,6 @@ module Luajit
     # Lua: `lua_pushlightuserdata`, `[-0, +1, -]`
     def push(x : Pointer(Void)) : Nil
       LibLuaJIT.lua_pushlightuserdata(self, x)
-    end
-
-    # Lua: `lua_pushthread`, `[-0, +1, -]`
-    def push_thread(x : LuaState) : ThreadStatus
-      if LibLuaJIT.lua_pushthread(x) == 1
-        ThreadStatus::Main
-      else
-        ThreadStatus::Coroutine
-      end
     end
 
     def push(x : Array) : Nil
@@ -992,6 +972,36 @@ module Luajit
       end
     end
 
+    # Lua: `lua_pushcfunction`, `[-n, +1, m]`
+    def push_fn(&block : LuaCFunction) : Nil
+      push(block)
+    end
+
+    # Lua: `lua_pushcclosure`, `[-n, +1, m]`
+    def push_fn_closure(&block : Function) : Nil
+      box = Box(typeof(block)).box(block)
+      track(box)
+      proc = LuaCFunction.new do |l|
+        state = LuaState.new(l)
+        begin
+          Box(typeof(block)).unbox(state.to_userdata!(state.upvalue(1))).call(state)
+        rescue err
+          LibLuaJIT.luaL_error(state, err.inspect)
+        end
+      end
+      push(box)
+      LibLuaJIT.lua_pushcclosure(self, proc, 1)
+    end
+
+    # Lua: `lua_pushthread`, `[-0, +1, -]`
+    def push_thread(x : LuaState) : ThreadStatus
+      if LibLuaJIT.lua_pushthread(x) == 1
+        ThreadStatus::Main
+      else
+        ThreadStatus::Coroutine
+      end
+    end
+
     ### SET FUNCTIONS
 
     # :nodoc:
@@ -1007,7 +1017,7 @@ module Luajit
     def set_table(index : Int32) : Nil
       push_value(index)
       insert(-3)
-      LibLuaJIT.lua_pushcclosure(self, LUA_SETTABLE_PROC, 0)
+      push(LUA_SETTABLE_PROC)
       insert(-4)
       status = pcall(3, 0)
       raise LuaProtectedError.new(self, status, "lua_settable") unless status.ok?
@@ -1045,7 +1055,7 @@ module Luajit
 
       push_value(index)
       insert(-2)
-      LibLuaJIT.lua_pushcclosure(self, LUA_SETFIELD_PROC, 0)
+      push(LUA_SETFIELD_PROC)
       insert(-3)
       push(k)
       status = pcall(3, 0)
@@ -1073,7 +1083,7 @@ module Luajit
     #
     # Lua: `lua_setglobal`, `[-1, +0, e]`
     def set_global(name : String) : Nil
-      LibLuaJIT.lua_pushcclosure(self, LUA_SETGLOBAL_PROC, 0)
+      push(LUA_SETGLOBAL_PROC)
       insert(-2)
       push(name)
       status = pcall(2, 0)
@@ -1099,7 +1109,7 @@ module Luajit
 
     # Raises `LuaProtectedError` if underlying operation failed
     def set_registry(name : String) : Nil
-      LibLuaJIT.lua_pushcclosure(self, LUA_SETREGISTRY_PROC, 0)
+      push(LUA_SETREGISTRY_PROC)
       insert(-2)
       push(name)
       status = pcall(2, 0)
@@ -1125,7 +1135,7 @@ module Luajit
 
     # Raises `LuaProtectedError` if underlying operation failed
     def set_environment(name : String) : Nil
-      LibLuaJIT.lua_pushcclosure(self, LUA_SETENVIRONMENT_PROC, 0)
+      push(LUA_SETENVIRONMENT_PROC)
       insert(-2)
       push(name)
       status = pcall(2, 0)
@@ -1143,9 +1153,39 @@ module Luajit
     # Registers a global function
     #
     # Lua: `lua_register`
-    def register_global(name : String, &block : Function) : Nil
-      push(&block)
+    def register_fn_global(name : String, &block : Function) : Nil
+      push(block)
       set_global(name)
+    end
+
+    # Registers a named function to table at the top of the stack
+    def register_fn(name : String, &block : Function) : Nil
+      assert_table?(-1)
+      push(name)
+      push(block)
+      set_table(-3)
+    end
+
+    # TODO
+    # Lua Compat 5.3
+    #def get_subtable(index : Int32, fname : String) : Bool
+    #end
+
+    # TODO
+    # Lua Compat 5.3
+    #def requiref(modname : String, openf : LuaCFunction, glb : Bool = false) : Nil
+    #end
+
+    # TODO
+    # - use `requiref` as baseline
+    def register(l : Library) : Nil
+      raise NotImplementedError.new("register(Library)")
+    end
+
+    def register_library(name : String, & : Library ->) : Nil
+      l = Library.new(name)
+      yield l
+      register(l)
     end
 
     # Lua: `luaL_register`, `[-(0|1), +1, m]`
@@ -1167,16 +1207,6 @@ module Luajit
       libs << LibLuaJIT::Reg.new(name: Pointer(UInt8).null, func: Pointer(Void).null)
       LibLuaJIT.luaL_register(self, Pointer(UInt8).null, libs)
     end
-
-    # TODO
-    # Lua Compat 5.3
-    #def get_subtable(index : Int32, fname : String) : Bool
-    #end
-
-    # TODO
-    # Lua Compat 5.3
-    #def requiref(modname : String, openf : LuaCFunction, glb : Bool = false) : Nil
-    #end
 
     # Lua: `lua_rawset`, `[-2, +0, m]`
     def raw_set(index : Int32) : Nil
