@@ -971,16 +971,17 @@ module Luajit
     # :nodoc:
     # TODO
     # - use `requiref` as baseline
-    def register(l : Library) : Nil
-      raise NotImplementedError.new("register(Library)")
-    end
+    # def register(l : Library) : Nil
+    # raise NotImplementedError.new("register(Library)")
+    # end
 
     # :nodoc:
-    def register_library(name : String, & : Library ->) : Nil
-      l = Library.new(name)
-      yield l
-      register(l)
-    end
+    # TODO
+    # def register_library(name : String, & : Library ->) : Nil
+    # l = Library.new(name)
+    # yield l
+    # register(l)
+    # end
 
     # Lua: `luaL_register`
     def register(name : String, regs : Array(LuaReg)) : Nil
