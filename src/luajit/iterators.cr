@@ -1,5 +1,3 @@
-require "./lua_any"
-
 module Luajit
   # :nodoc:
   alias TablePair = Tuple(String | Float64, LuaAny)
@@ -22,7 +20,7 @@ module Luajit
     def next
       result : TablePair? = nil
 
-      while @state.next(@index)
+      while @state.next!(@index)
         key = case @state.get_type(KEY)
               when .string?
                 @state.to_string(KEY)

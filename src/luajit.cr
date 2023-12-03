@@ -1,4 +1,9 @@
 require "./luajit/version"
+require "./luajit/lib_luajit"
+require "./luajit/lua_c_function"
+require "./luajit/lua_type"
+require "./luajit/lua_ref"
+require "./luajit/lua_any"
 require "./luajit/*"
 
 module Luajit
