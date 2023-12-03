@@ -12,11 +12,7 @@ module Luajit
         LibLuaJIT.lua_gc(l, LibLuaJIT::LUA_GCSTOP, 0)
         0
       end
-      @state.pcall(0, 0).tap do |status|
-        unless status.ok?
-          raise LuaProtectedError.new(@state, status, "LuaGC#stop!")
-        end
-      end
+      @state.pcall!(0, 0, err_msg: "LuaGC#stop!")
     end
 
     # Restarts the garbage collector
@@ -25,11 +21,7 @@ module Luajit
         LibLuaJIT.lua_gc(l, LibLuaJIT::LUA_GCRESTART, 0)
         0
       end
-      @state.pcall(0, 0).tap do |status|
-        unless status.ok?
-          raise LuaProtectedError.new(@state, status, "LuaGC#restart!")
-        end
-      end
+      @state.pcall!(0, 0, err_msg: "LuaGC#restart!")
     end
 
     # Performs a full garbage-collection cycle
@@ -38,11 +30,7 @@ module Luajit
         LibLuaJIT.lua_gc(l, LibLuaJIT::LUA_GCCOLLECT, 0)
         0
       end
-      @state.pcall(0, 0).tap do |status|
-        unless status.ok?
-          raise LuaProtectedError.new(@state, status, "LuaGC#collect!")
-        end
-      end
+      @state.pcall!(0, 0, err_msg: "LuaGC#collect!")
     end
 
     # Returns the current amount of memory (in KBs) in use by Lua
@@ -52,11 +40,7 @@ module Luajit
         state.push(LibLuaJIT.lua_gc(state, LibLuaJIT::LUA_GCCOUNT, 0))
         1
       end
-      @state.pcall(0, 1).tap do |status|
-        unless status.ok?
-          raise LuaProtectedError.new(@state, status, "LuaGC#count!")
-        end
-      end
+      @state.pcall!(0, 1, err_msg: "LuaGC#count!")
       @state.to_i(-1).tap do
         @state.pop(1)
       end
@@ -69,11 +53,7 @@ module Luajit
         state.push(LibLuaJIT.lua_gc(state, LibLuaJIT::LUA_GCCOUNTB, 0))
         1
       end
-      @state.pcall(0, 1).tap do |status|
-        unless status.ok?
-          raise LuaProtectedError.new(@state, status, "LuaGC#count_bytes!")
-        end
-      end
+      @state.pcall!(0, 1, err_msg: "LuaGC#count_bytes!")
       @state.to_i(-1).tap do
         @state.pop(1)
       end
@@ -94,11 +74,7 @@ module Luajit
         1
       end
       @state.push(size)
-      @state.pcall(1, 1).tap do |status|
-        unless status.ok?
-          raise LuaProtectedError.new(@state, status, "LuaGC#step!")
-        end
-      end
+      @state.pcall!(1, 1, err_msg: "LuaGC#step!")
       @state.to_i(-1).tap do
         @state.pop(1)
       end
@@ -116,11 +92,7 @@ module Luajit
         1
       end
       @state.push(data)
-      @state.pcall(1, 1).tap do |status|
-        unless status.ok?
-          raise LuaProtectedError.new(@state, status, "LuaGC#set_pause!")
-        end
-      end
+      @state.pcall!(1, 1, err_msg: "LuaGC#set_pause!")
       @state.to_i(-1).tap do
         @state.pop(1)
       end
@@ -138,11 +110,7 @@ module Luajit
         1
       end
       @state.push(data)
-      @state.pcall(1, 1).tap do |status|
-        unless status.ok?
-          raise LuaProtectedError.new(@state, status, "LuaGC#set_step_multiplier!")
-        end
-      end
+      @state.pcall!(1, 1, err_msg: "LuaGC#set_step_multiplier!")
       @state.to_i(-1).tap do
         @state.pop(1)
       end
