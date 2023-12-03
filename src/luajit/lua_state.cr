@@ -34,16 +34,12 @@ module Luajit
       state.set_registry!(MT_NAME)
     end
 
-    # :nodoc:
-    LUA_ATPANIC_PROC = LuaCFunction.new do |l|
-      state = LuaState.new(l)
-      STDERR.puts state.at_panic_default_error_message
-      0
-    end
-
     def self.create : LuaState
       new(LibLuaJIT.luaL_newstate).tap do |state|
-        state.at_panic(LUA_ATPANIC_PROC)
+        state.at_panic do |l|
+          STDERR.puts LuaState.new(l).at_panic_default_error_message
+          0
+        end
         set_registry_address(state)
       end
     end
@@ -205,15 +201,6 @@ module Luajit
       String.new(LibLuaJIT.lua_typename(self, LibLuaJIT.lua_type(self, index)) || Bytes[])
     end
 
-    # :nodoc:
-    LUA_EQUAL_PROC = LuaCFunction.new do |l|
-      state = LuaState.new(l)
-      index1 = -2
-      index2 = -1
-      state.push(LibLuaJIT.lua_equal(state, index1, index2) == true.to_unsafe)
-      1
-    end
-
     # Returns `true` if the two values in indices *index1* and *index2* are equal
     #
     # Follows the semantics of the Lua `==` operator (i.e. may call metamethods)
@@ -226,7 +213,11 @@ module Luajit
       index2 = abs_index(index2)
       push_value(index1)
       push_value(index2)
-      push(LUA_EQUAL_PROC)
+      push_fn do |l|
+        s = LuaState.new(l)
+        s.push(LibLuaJIT.lua_equal(s, -2, -1) == true.to_unsafe)
+        1
+      end
       insert(-3)
       pcall(2, 1).tap do |status|
         unless status.ok?
@@ -247,15 +238,6 @@ module Luajit
       LibLuaJIT.lua_rawequal(self, index1, index2) == true.to_unsafe
     end
 
-    # :nodoc:
-    LUA_LESSTHAN_PROC = LuaCFunction.new do |l|
-      state = LuaState.new(l)
-      index1 = -2
-      index2 = -1
-      state.push(LibLuaJIT.lua_lessthan(state, index1, index2) == true.to_unsafe)
-      1
-    end
-
     # Returns `true` if the value at *index1* is smaller than the value at *index2*
     #
     # Follows the semantics of the Lua `<` operator (i.e. may call metamethods)
@@ -268,7 +250,11 @@ module Luajit
       index2 = abs_index(index2)
       push_value(index1)
       push_value(index2)
-      push(LUA_LESSTHAN_PROC)
+      push_fn do |l|
+        s = LuaState.new(l)
+        s.push(LibLuaJIT.lua_lessthan(s, -2, -1) == true.to_unsafe)
+        1
+      end
       insert(-3)
       pcall(2, 1).tap do |status|
         unless status.ok?
@@ -419,21 +405,17 @@ module Luajit
 
     # Lua: `lua_remove`, `[-1, +0, -]`
     def remove(index : Int32) : Nil
-      case index
-      when LibLuaJIT::LUA_GLOBALSINDEX, LibLuaJIT::LUA_REGISTRYINDEX, LibLuaJIT::LUA_ENVIRONINDEX
+      if is_pseudo(index)
         raise LuaArgumentError.new("cannot be called with a pseudo-index")
       end
-
       LibLuaJIT.lua_remove(self, index)
     end
 
     # Lua: `lua_insert`, `[-1, +1, -]`
     def insert(index : Int32) : Nil
-      case index
-      when LibLuaJIT::LUA_GLOBALSINDEX, LibLuaJIT::LUA_REGISTRYINDEX, LibLuaJIT::LUA_ENVIRONINDEX
+      if is_pseudo(index)
         raise LuaArgumentError.new("cannot be called with a pseudo-index")
       end
-
       LibLuaJIT.lua_insert(self, index)
     end
 
@@ -561,20 +543,16 @@ module Luajit
 
     ### GET FUNCTIONS
 
-    # :nodoc:
-    LUA_GETTABLE_PROC = LuaCFunction.new do |l|
-      state = LuaState.new(l)
-      LibLuaJIT.lua_gettable(state, -2)
-      1
-    end
-
     # Raises `LuaProtectedError` if underlying operation failed
     #
     # Lua: `lua_gettable`, `[-1, +1, e]`
     def get_table!(index : Int32) : Nil
       push_value(index)
       insert(-2)
-      push(LUA_GETTABLE_PROC)
+      push_fn do |l|
+        LibLuaJIT.lua_gettable(l, -2)
+        1
+      end
       insert(-3)
       pcall(2, 1).tap do |status|
         unless status.ok?
@@ -583,30 +561,22 @@ module Luajit
       end
     end
 
-    # :nodoc:
-    LUA_GETFIELD_PROC = LuaCFunction.new do |l|
-      state = LuaState.new(l)
-      key = state.to_string(-1)
-      state.pop(1)
-      LibLuaJIT.lua_getfield(state, -1, key)
-      1
-    end
-
     # Raises `LuaProtectedError` if underlying operation failed
     #
     # Lua: `lua_getfield`, `[-0, +1, e]`
     def get_field!(index : Int32, name : String) : Nil
-      case index
-      when LibLuaJIT::LUA_GLOBALSINDEX
-        raise LuaArgumentError.new("called with 'LUA_GLOBALSINDEX', must use 'LuaState#get_global!' instead")
-      when LibLuaJIT::LUA_REGISTRYINDEX
-        raise LuaArgumentError.new("called with 'LUA_REGISTRYINDEX', must use 'LuaState#get_registry!' instead")
-      when LibLuaJIT::LUA_ENVIRONINDEX
-        raise LuaArgumentError.new("called with 'LUA_ENVIRONINDEX', must use 'LuaState#get_environment!' instead")
-      end
+      return get_global!(name) if index == LibLuaJIT::LUA_GLOBALSINDEX
+      return get_registry!(name) if index == LibLuaJIT::LUA_REGISTRYINDEX
+      return get_environment!(name) if index == LibLuaJIT::LUA_ENVIRONINDEX
 
       push_value(index)
-      push(LUA_GETFIELD_PROC)
+      push_fn do |l|
+        s = LuaState.new(l)
+        k = s.to_string(-1)
+        s.pop(1)
+        LibLuaJIT.lua_getfield(s, -1, k)
+        1
+      end
       insert(-2)
       push(name)
       pcall(2, 1).tap do |status|
@@ -616,17 +586,14 @@ module Luajit
       end
     end
 
-    # :nodoc:
-    LUA_GETGLOBAL_PROC = LuaCFunction.new do |l|
-      state = LuaState.new(l)
-      key = state.to_string(-1)
-      LibLuaJIT.lua_getfield(state, LibLuaJIT::LUA_GLOBALSINDEX, key)
-      1
-    end
-
     # Raises `LuaProtectedError` if underlying operation failed
     def get_global!(name : String) : Nil
-      push(LUA_GETGLOBAL_PROC)
+      push_fn do |l|
+        s = LuaState.new(l)
+        k = s.to_string(-1)
+        LibLuaJIT.lua_getfield(s, LibLuaJIT::LUA_GLOBALSINDEX, k)
+        1
+      end
       push(name)
       pcall(1, 1).tap do |status|
         unless status.ok?
@@ -635,17 +602,14 @@ module Luajit
       end
     end
 
-    # :nodoc:
-    LUA_GETREGISTRY_PROC = LuaCFunction.new do |l|
-      state = LuaState.new(l)
-      key = state.to_string(-1)
-      LibLuaJIT.lua_getfield(state, LibLuaJIT::LUA_REGISTRYINDEX, key)
-      1
-    end
-
     # Raises `LuaProtectedError` if underlying operation failed
     def get_registry!(name : String) : Nil
-      push(LUA_GETREGISTRY_PROC)
+      push_fn do |l|
+        s = LuaState.new(l)
+        k = s.to_string(-1)
+        LibLuaJIT.lua_getfield(s, LibLuaJIT::LUA_REGISTRYINDEX, k)
+        1
+      end
       push(name)
       pcall(1, 1).tap do |status|
         unless status.ok?
@@ -659,17 +623,14 @@ module Luajit
       get_registry!(tname)
     end
 
-    # :nodoc:
-    LUA_GETENVIRONMENT_PROC = LuaCFunction.new do |l|
-      state = LuaState.new(l)
-      key = state.to_string(-1)
-      LibLuaJIT.lua_getfield(state, LibLuaJIT::LUA_ENVIRONINDEX, key)
-      1
-    end
-
     # Raises `LuaProtectedError` if underlying operation failed
     def get_environment!(name : String) : Nil
-      push(LUA_GETENVIRONMENT_PROC)
+      push_fn do |l|
+        s = LuaState.new(l)
+        k = s.to_string(-1)
+        LibLuaJIT.lua_getfield(s, LibLuaJIT::LUA_ENVIRONINDEX, k)
+        1
+      end
       push(name)
       pcall(1, 1).tap do |status|
         unless status.ok?
@@ -717,11 +678,9 @@ module Luajit
 
     # Lua: `lua_pcall`, `[-(nargs + 1), +(nresults|1), -]`
     def pcall(nargs : Int32, nresults : Int32, errfunc : Int32 = 0) : LuaStatus
-      case errfunc
-      when LibLuaJIT::LUA_GLOBALSINDEX, LibLuaJIT::LUA_REGISTRYINDEX, LibLuaJIT::LUA_ENVIRONINDEX
+      if is_pseudo(errfunc)
         raise LuaArgumentError.new("'errfunc' argument cannot be a pseudo-index")
       end
-
       LuaStatus.new(LibLuaJIT.lua_pcall(self, nargs, nresults, errfunc))
     end
 
@@ -759,27 +718,24 @@ module Luajit
 
     ### OTHER FUNCTIONS
 
-    # :nodoc:
-    LUA_NEXT_PROC = LuaCFunction.new do |l|
-      state = LuaState.new(l)
-      result = LibLuaJIT.lua_next(state, -2)
-      if result != 0
-        state.push(true)
-      else
-        state.push(nil)
-        state.push(nil)
-        state.push(false)
-      end
-      3
-    end
-
     # Raises `LuaProtectedError` if underlying operation failed
     #
     # Lua: `lua_next`, `[-1, +(2|0), e]`
     def next!(index : Int32) : Bool
       push_value(index)
       insert(-2)
-      push(LUA_NEXT_PROC)
+      push_fn do |l|
+        s = LuaState.new(l)
+        r = LibLuaJIT.lua_next(s, -2)
+        if r != 0
+          s.push(true)
+        else
+          s.push(nil)
+          s.push(nil)
+          s.push(false)
+        end
+        3
+      end
       insert(-3)
       pcall(2, 3).tap do |status|
         unless status.ok?
@@ -790,14 +746,6 @@ module Luajit
         pop(1)
         pop(2) unless result
       end
-    end
-
-    # :nodoc:
-    LUA_CONCAT_PROC = LuaCFunction.new do |l|
-      state = LuaState.new(l)
-      n = state.size
-      LibLuaJIT.lua_concat(state, n)
-      1
     end
 
     # Raises `LuaProtectedError` if underlying operation failed
@@ -811,7 +759,10 @@ module Luajit
         return
       end
 
-      push(LUA_CONCAT_PROC)
+      push_fn do |l|
+        LibLuaJIT.lua_concat(l, LuaState.new(l).size)
+        1
+      end
       insert(-(n) - 1)
       pcall(n, 1).tap do |status|
         unless status.ok?
@@ -930,20 +881,16 @@ module Luajit
 
     ### SET FUNCTIONS
 
-    # :nodoc:
-    LUA_SETTABLE_PROC = LuaCFunction.new do |l|
-      state = LuaState.new(l)
-      LibLuaJIT.lua_settable(state, -3)
-      0
-    end
-
     # Raises `LuaProtectedError` if underlying operation failed
     #
     # Lua: `lua_settable`, `[-2, +0, e]`
     def set_table!(index : Int32) : Nil
       push_value(index)
       insert(-3)
-      push(LUA_SETTABLE_PROC)
+      push_fn do |l|
+        LibLuaJIT.lua_settable(l, -3)
+        0
+      end
       insert(-4)
       pcall(3, 0).tap do |status|
         unless status.ok?
@@ -952,31 +899,23 @@ module Luajit
       end
     end
 
-    # :nodoc:
-    LUA_SETFIELD_PROC = LuaCFunction.new do |l|
-      state = LuaState.new(l)
-      key = state.to_string(-1)
-      state.pop(1)
-      LibLuaJIT.lua_setfield(state, -2, key)
-      0
-    end
-
     # Raises `LuaProtectedError` if underlying operation failed
     #
     # Lua: `lua_setfield`, `[-1, +0, e]`
     def set_field!(index : Int32, k : String) : Nil
-      case index
-      when LibLuaJIT::LUA_GLOBALSINDEX
-        raise LuaArgumentError.new("called with 'LUA_GLOBALSINDEX', must use 'LuaState#set_global!' instead")
-      when LibLuaJIT::LUA_REGISTRYINDEX
-        raise LuaArgumentError.new("called with 'LUA_REGISTRYINDEX', must use 'LuaState#set_registry!' instead")
-      when LibLuaJIT::LUA_ENVIRONINDEX
-        raise LuaArgumentError.new("called with 'LUA_ENVIRONINDEX', must use 'LuaState#set_environment!' instead")
-      end
+      return set_global!(k) if index == LibLuaJIT::LUA_GLOBALSINDEX
+      return set_registry!(k) if index == LibLuaJIT::LUA_REGISTRYINDEX
+      return set_environment!(k) if index == LibLuaJIT::LUA_ENVIRONINDEX
 
       push_value(index)
       insert(-2)
-      push(LUA_SETFIELD_PROC)
+      push_fn do |l|
+        s = LuaState.new(l)
+        k = s.to_string(-1)
+        s.pop(1)
+        LibLuaJIT.lua_setfield(s, -2, k)
+        0
+      end
       insert(-3)
       push(k)
       pcall(3, 0).tap do |status|
@@ -986,20 +925,17 @@ module Luajit
       end
     end
 
-    # :nodoc:
-    LUA_SETGLOBAL_PROC = LuaCFunction.new do |l|
-      state = LuaState.new(l)
-      key = state.to_string(-1)
-      state.pop(1)
-      LibLuaJIT.lua_setfield(state, LibLuaJIT::LUA_GLOBALSINDEX, key)
-      0
-    end
-
     # Raises `LuaProtectedError` if underlying operation failed
     #
     # Lua: `lua_setglobal`, `[-1, +0, e]`
     def set_global!(name : String) : Nil
-      push(LUA_SETGLOBAL_PROC)
+      push_fn do |l|
+        s = LuaState.new(l)
+        k = s.to_string(-1)
+        s.pop(1)
+        LibLuaJIT.lua_setfield(s, LibLuaJIT::LUA_GLOBALSINDEX, k)
+        0
+      end
       insert(-2)
       push(name)
       pcall(2, 0).tap do |status|
@@ -1009,18 +945,15 @@ module Luajit
       end
     end
 
-    # :nodoc:
-    LUA_SETREGISTRY_PROC = LuaCFunction.new do |l|
-      state = LuaState.new(l)
-      key = state.to_string(-1)
-      state.pop(1)
-      LibLuaJIT.lua_setfield(state, LibLuaJIT::LUA_REGISTRYINDEX, key)
-      0
-    end
-
     # Raises `LuaProtectedError` if underlying operation failed
     def set_registry!(name : String) : Nil
-      push(LUA_SETREGISTRY_PROC)
+      push_fn do |l|
+        s = LuaState.new(l)
+        k = s.to_string(-1)
+        s.pop(1)
+        LibLuaJIT.lua_setfield(s, LibLuaJIT::LUA_REGISTRYINDEX, k)
+        0
+      end
       insert(-2)
       push(name)
       pcall(2, 0).tap do |status|
@@ -1030,18 +963,15 @@ module Luajit
       end
     end
 
-    # :nodoc:
-    LUA_SETENVIRONMENT_PROC = LuaCFunction.new do |l|
-      state = LuaState.new(l)
-      key = state.to_string(-1)
-      state.pop(1)
-      LibLuaJIT.lua_setfield(state, LibLuaJIT::LUA_ENVIRONINDEX, key)
-      0
-    end
-
     # Raises `LuaProtectedError` if underlying operation failed
     def set_environment!(name : String) : Nil
-      push(LUA_SETENVIRONMENT_PROC)
+      push_fn do |l|
+        s = LuaState.new(l)
+        k = s.to_string(-1)
+        s.pop(1)
+        LibLuaJIT.lua_setfield(s, LibLuaJIT::LUA_ENVIRONINDEX, k)
+        0
+      end
       insert(-2)
       push(name)
       pcall(2, 0).tap do |status|
@@ -1067,22 +997,55 @@ module Luajit
       set_table(-3)
     end
 
-    # TODO
+    # Ensure that stack[idx][fname] has a table and push that table onto the stack
+    #
     # Lua Compat 5.3
-    #def get_subtable(index : Int32, fname : String) : Bool
-    #end
+    def get_subtable(index : Int32, fname : String) : Bool
+      get_field!(index, fname)
+      if is_table?(-1)
+        true
+      else
+        pop(1)
+        index = abs_index(index)
+        new_table
+        push_value(-1)
+        set_field!(index, fname)
+        false
+      end
+    end
 
-    # TODO
+    # Stripped-down 'require': After checking "loaded" table, calls 'openf'
+    # to open a module, registers the result in 'package.loaded' table and,
+    # if 'glb' is true, also registers the result in the global table.
+    # Leaves resulting module on the top.
+    #
     # Lua Compat 5.3
-    #def requiref(modname : String, openf : LuaCFunction, glb : Bool = false) : Nil
-    #end
+    def requiref(modname : String, openf : LuaCFunction, glb : Bool = false) : Nil
+      get_subtable("_LOADED")
+      get_field!(-1, modname)
+      unless to_boolean(-1)
+        pop(1)
+        push(openf)
+        push(modname)
+        pcall(1, 1)
+        push_value(-1)
+        set_field!(-3, modname)
+      end
+      remove(-2)
+      if glb
+        push_value(-1)
+        set_global!(modname)
+      end
+    end
 
+    # :nodoc:
     # TODO
     # - use `requiref` as baseline
     def register(l : Library) : Nil
       raise NotImplementedError.new("register(Library)")
     end
 
+    # :nodoc:
     def register_library(name : String, & : Library ->) : Nil
       l = Library.new(name)
       yield l
@@ -1159,11 +1122,16 @@ module Luajit
 
     # Lua Compat 5.3
     def abs_index(index : Int32) : Int32
-      if index > 0 || index <= LibLuaJIT::LUA_REGISTRYINDEX
+      if index > 0 || is_pseudo(index)
         index
       else
         size + index + 1
       end
+    end
+
+    # :nodoc:
+    def is_pseudo(index : Int32)
+      index <= LibLuaJIT::LUA_REGISTRYINDEX
     end
 
     ### STATE MANIPULATION

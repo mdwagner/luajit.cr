@@ -2,7 +2,7 @@ require "./spec_helper"
 
 describe Luajit::LuaState do
   it "checks if #less_than! works on integer values" do
-    Luajit.once do |state|
+    Luajit.run do |state|
       state.push(1)
       state.push(2)
       state.less_than!(-2, -1).should be_true
@@ -13,7 +13,7 @@ describe Luajit::LuaState do
   end
 
   it "checks if #less_than! fails on nil values" do
-    Luajit.once do |state|
+    Luajit.run do |state|
       state.push(nil)
       state.push(nil)
       expect_raises(Luajit::LuaProtectedError, "lua_lessthan") do
@@ -25,7 +25,7 @@ describe Luajit::LuaState do
   end
 
   it "checks if #eq! works on integer values" do
-    Luajit.once do |state|
+    Luajit.run do |state|
       state.push(1)
       state.push(2)
       state.eq!(-2, -1).should be_false
@@ -38,7 +38,7 @@ describe Luajit::LuaState do
   end
 
   it "checks if #get_table! and #set_table! work" do
-    Luajit.once do |state|
+    Luajit.run do |state|
       state.new_table
       state.push("message")
       state.push("hello world!")

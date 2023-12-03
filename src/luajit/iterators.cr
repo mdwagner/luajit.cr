@@ -1,9 +1,8 @@
 module Luajit
   # :nodoc:
-  alias TablePair = Tuple(String | Float64, LuaAny)
-
-  # :nodoc:
   class LuaTableIterator
+    alias TablePair = Tuple(String | Float64, LuaAny)
+
     include Iterator(TablePair)
 
     KEY   = -2

@@ -7,9 +7,13 @@ require "./luajit/lua_any"
 require "./luajit/*"
 
 module Luajit
-  def self.new(stdlib = true) : LuaState
-    LuaState.create.tap do |state|
-      state.open_library(:all) if stdlib
+  def self.new : LuaState
+    LuaState.create
+  end
+
+  def self.new_with_defaults : LuaState
+    new.tap do |state|
+      state.open_library(:all)
     end
   end
 
@@ -17,8 +21,8 @@ module Luajit
     LuaState.destroy(state)
   end
 
-  def self.once(stdlib = true, & : LuaState ->) : Nil
-    state = new(stdlib)
+  def self.run(& : LuaState ->) : Nil
+    state = new_with_defaults
     begin
       yield state
     ensure

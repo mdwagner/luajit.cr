@@ -29,22 +29,19 @@ dependencies:
 require "luajit"
 
 # Basic Hello World
-Luajit.run do |lua_state|
-  lua_state.execute <<-LUA
+Luajit.run do |state|
+  state.execute! <<-'LUA'
   print("Hello World!")
   LUA
 end
 ```
-
-Checkout `spec/luajit_spec.cr` for other examples
 
 ## Development
 
 - [x] LuaJIT bindings
 - [x] Works on Windows (+build script)
 - [x] luajit.cr LuaState
-- [x] luajit.cr Builder
-- [ ] Comprehensive tests
+- [ ] Better tests
 - [ ] Better docs + readme
 
 I have everything working and it should be usable to actually create stuff now, but haven't tested it enough. I'm hoping with more practical use it will have better test coverage.
