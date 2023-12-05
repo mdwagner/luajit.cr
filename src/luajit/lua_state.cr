@@ -8,13 +8,9 @@ module Luajit
     end
 
     # :nodoc:
-    MT_NAME = metatable_name("__LuaState__")
+    MT_NAME = "luajit_cr::__LuaState__"
 
     @ptr : Pointer(LibLuaJIT::State)
-
-    def self.metatable_name(name : String) : String
-      "luajit_cr::#{name}"
-    end
 
     # :nodoc:
     #
@@ -71,7 +67,7 @@ module Luajit
     #
     # Raises `LuaError`
     def get_registry_address : String
-      get_registry!(MT_NAME)
+      get_registry(MT_NAME)
       to_string(-1).tap do
         pop(1)
       end
@@ -620,10 +616,10 @@ module Luajit
       end
     end
 
-    # Pushes onto the stack the metatable of the value at index *tname*
+    # Pushes onto the stack the metatable associated with *tname*
+    # in the registry
     #
-    # If index is not valid, or it does not have a metatable, pushes nothing
-    # onto the stack.
+    # See `#new_metatable`
     def get_metatable(tname : String) : Nil
       begin
         get_registry(tname)
@@ -1123,6 +1119,7 @@ module Luajit
     # register(l)
     # end
 
+    # Opens a library with *name* and registers all functions in *regs*
     def register(name : String, regs : Array(LuaReg)) : Nil
       libs = [] of LibLuaJIT::Reg
       regs.each do |reg|
@@ -1132,6 +1129,7 @@ module Luajit
       LibLuaJIT.luaL_register(self, name, libs)
     end
 
+    # Registers all functions in *regs* to table at the top of the stack
     def register(regs : Array(LuaReg)) : Nil
       libs = [] of LibLuaJIT::Reg
       regs.each do |reg|
@@ -1141,26 +1139,52 @@ module Luajit
       LibLuaJIT.luaL_register(self, Pointer(UInt8).null, libs)
     end
 
+    # Similar to `#set_table`, but does a raw assignment (i.e., without metamethods)
     def raw_set(index : Int32) : Nil
       LibLuaJIT.lua_rawset(self, index)
     end
 
+    # Does the equivalent of t[n] = v, where t is the value at *index*,
+    # v is the value at the top of the stack, and *n* is an array-like index
+    #
+    # Pops the value from the stack.
+    #
+    # The assignment is raw; that is, it does not invoke metamethods.
     def raw_set_index(index : Int32, n : Int32) : Nil
       LibLuaJIT.lua_rawseti(self, index, n)
     end
 
+    # Pops a table from the stack and sets it as the new metatable for the
+    # value at *index*
     def set_metatable(index : Int32) : Int32
       LibLuaJIT.lua_setmetatable(self, index)
     end
 
+    # Pops a table from the stack and sets it as the new environment
+    # for the value at *index*
+    #
+    # If the value at *index* is neither a function, nor a thread,
+    # nor a userdata, returns 0. Otherwise returns 1.
     def set_fenv(index : Int32) : Int32
       LibLuaJIT.lua_setfenv(self, index)
     end
 
+    # Creates a new table to be used as a metatable for userdata,
+    # adds it to the registry with key *tname*, and returns `true`
+    #
+    # If the registry already has the key *tname*, returns `false`.
+    #
+    # In both cases pushes onto the stack the final value associated
+    # with *tname* in the registry.
     def new_metatable(tname : String) : Bool
       LibLuaJIT.luaL_newmetatable(self, tname) != 0
     end
 
+    # Pushes onto the stack the field *e* from the metatable of the
+    # object at index *obj*
+    #
+    # If the object does not have a metatable, or if the metatable does not
+    # have this field, returns `false` and pushes nothing.
     def get_metafield(obj : Int32, e : String) : Bool
       LibLuaJIT.luaL_getmetafield(self, obj, e) != 0
     end
@@ -1304,53 +1328,52 @@ module Luajit
       assert_type!(index, :userdata)
     end
 
-    def check_userdata!(index : Int32, type : String) : Nil
-      if to_userdata?(index)    # value is a userdata?
-        if get_metatable(index) # does it have a metatable?
-          get_registry(type)    # get correct metatable
-          if raw_eq(-1, -2)     # does it have correct mt?
-            pop(2)              # remove both metatables
-            return
+    # Checks whether the value at *index* is a userdata of *type*
+    def check_userdata!(index : Int32, type : String) : Pointer(Void)
+      if ptr = to_userdata?(index) # value is a userdata?
+        if get_metatable(index)    # does it have a metatable?
+          get_registry(type)       # get correct metatable
+          if raw_eq(-1, -2)        # does it have correct mt?
+            pop(2)                 # remove both metatables
+            return ptr
           end
         end
       end
       raise_type_error!(index, type) # else error
     end
 
-    # def create_userdata(value : U) : Nil forall U
-    # # create box
-    # box = Box(U).box(value)
-    # # track box
-    # track(box)
-    # # create userdata
-    # ud_size = sizeof(Box(U)).to_u64
-    # ud_ptr = new_userdata(ud_size).as(Pointer(typeof(box)))
-    # ud_ptr.value = box
-    # # create metatable
-    # new_metatable(LuaState.metatable_name({\{ U.name.stringify }\}))
-    # # set copy of metatable
-    # push_value(-1)
-    # set_metatable(-3)
-    # # define metamethods for metatable
-    # push("__gc")
-    # push do |s|
-    # s.untrack(box)
-    # 0
-    # end
-    # raw_set(-3)
-    # pop(1)
-    # end
+    # Creates a full userdata from *value* and pushes it on the stack
+    #
+    # NOTE: Use `#get_userdata` to retrieve it later.
+    def create_userdata(value : U) : Nil forall U
+      # create box
+      box = Box(U).box(value)
+      # track box
+      track(box)
+      # create userdata
+      ud_ptr = new_userdata(sizeof(UInt64).to_u64).as(Pointer(UInt64))
+      ud_ptr.value = box.address
+      # create metatable
+      new_metatable(value.class.to_s)
+      # set copy of metatable
+      push_value(-1)
+      set_metatable(-3)
+      # define metamethods for metatable
+      push("__gc")
+      push_fn_closure do |s|
+        s.untrack(box)
+        0
+      end
+      raw_set(-3)
+      pop(1)
+    end
 
-    # def get_userdata(_type : U.class, index : Int32) : U forall U
-    # ud_ptr = get_raw_userdata(U, index).as(Pointer(Pointer(Void)))
-    # Box(U).unbox(ud_ptr.value)
-    # end
-
-    # def get_raw_userdata(_type : U.class, index : Int32) : Pointer(Void) forall U
-    # mt_name = LuaState.metatable_name({\{ U.name.stringify }\})
-    # check_userdata!(index, mt_name)
-    # to_userdata!(index)
-    # end
+    # Retrieves a full userdata at *index* with return *type*
+    def get_userdata(index : Int32, type : U.class) : U forall U
+      ud_ptr = check_userdata!(index, type.to_s).as(Pointer(UInt64))
+      box = Pointer(Void).new(ud_ptr.value)
+      Box(U).unbox(box)
+    end
 
     # https://www.lua.org/manual/5.1/manual.html#luaL_ref
     def ref(index : Int32) : Int32

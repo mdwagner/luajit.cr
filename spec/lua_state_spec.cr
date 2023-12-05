@@ -1,7 +1,7 @@
 require "./spec_helper"
 
 describe Luajit::LuaState do
-  it "checks if #less_than! works on integer values" do
+  it "checks if #less_than works on integer values" do
     Luajit.run do |state|
       state.push(1)
       state.push(2)
@@ -12,7 +12,7 @@ describe Luajit::LuaState do
     end
   end
 
-  it "checks if #less_than! fails on nil values" do
+  it "checks if #less_than fails on nil values" do
     Luajit.run do |state|
       state.push(nil)
       state.push(nil)
@@ -24,7 +24,7 @@ describe Luajit::LuaState do
     end
   end
 
-  it "checks if #eq! works on integer values" do
+  it "checks if #eq works on integer values" do
     Luajit.run do |state|
       state.push(1)
       state.push(2)
@@ -37,7 +37,7 @@ describe Luajit::LuaState do
     end
   end
 
-  it "checks if #get_table! and #set_table! work" do
+  it "checks if #get_table and #set_table work" do
     Luajit.run do |state|
       state.new_table
       state.push("message")
@@ -49,6 +49,15 @@ describe Luajit::LuaState do
       state.to_string(-1).should eq("hello world!")
 
       SpecHelper.assert_stack_size!(state, 2)
+    end
+  end
+
+  it "checks if #create_userdata and #get_userdata work" do
+    Luajit.run do |state|
+      result = 999
+      state.create_userdata(result)
+      state.push(888)
+      state.get_userdata(-2, typeof(result)).should eq(result)
     end
   end
 end
