@@ -11,7 +11,7 @@ module Luajit
     @index : Int32 # Table index
 
     def initialize(@state : LuaState)
-      @state.assert_table?(-1)
+      @state.assert_table!(-1)
       @index = @state.size
       @state.push(nil)
     end
@@ -19,7 +19,7 @@ module Luajit
     def next
       result : TablePair? = nil
 
-      while @state.next!(@index)
+      while @state.next(@index)
         key = case @state.get_type(KEY)
               when .string?
                 @state.to_string(KEY)

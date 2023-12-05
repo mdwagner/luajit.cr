@@ -7,53 +7,73 @@ module Luajit
     end
 
     # Stops the garbage collector
-    def stop! : Nil
+    #
+    # Raises `LuaError` if operation fails
+    def stop : Nil
       @state.push_fn do |l|
         LibLuaJIT.lua_gc(l, LibLuaJIT::LUA_GCSTOP, 0)
         0
       end
-      @state.pcall!(0, 0, err_msg: "LuaGC#stop!")
+      @state.pcall(0, 0) do |status|
+        raise LuaError.default_handler(@state, status)
+      end
     end
 
     # Restarts the garbage collector
-    def restart! : Nil
+    #
+    # Raises `LuaError` if operation fails
+    def restart : Nil
       @state.push_fn do |l|
         LibLuaJIT.lua_gc(l, LibLuaJIT::LUA_GCRESTART, 0)
         0
       end
-      @state.pcall!(0, 0, err_msg: "LuaGC#restart!")
+      @state.pcall(0, 0) do |status|
+        raise LuaError.default_handler(@state, status)
+      end
     end
 
     # Performs a full garbage-collection cycle
-    def collect! : Nil
+    #
+    # Raises `LuaError` if operation fails
+    def collect : Nil
       @state.push_fn do |l|
         LibLuaJIT.lua_gc(l, LibLuaJIT::LUA_GCCOLLECT, 0)
         0
       end
-      @state.pcall!(0, 0, err_msg: "LuaGC#collect!")
+      @state.pcall(0, 0) do |status|
+        raise LuaError.default_handler(@state, status)
+      end
     end
 
     # Returns the current amount of memory (in KBs) in use by Lua
-    def count! : Int32
+    #
+    # Raises `LuaError` if operation fails
+    def count : Int32
       @state.push_fn do |l|
         state = LuaState.new(l)
         state.push(LibLuaJIT.lua_gc(state, LibLuaJIT::LUA_GCCOUNT, 0))
         1
       end
-      @state.pcall!(0, 1, err_msg: "LuaGC#count!")
+      @state.pcall(0, 1) do |status|
+        raise LuaError.default_handler(@state, status)
+      end
       @state.to_i(-1).tap do
         @state.pop(1)
       end
     end
 
     # Returns the remainder of dividing the current amount of bytes of memory in use by Lua by 1024
-    def count_bytes! : Int32
+    #
+    # Raises `LuaError` if operation fails
+    def count_bytes : Int32
       @state.push_fn do |l|
         state = LuaState.new(l)
         state.push(LibLuaJIT.lua_gc(state, LibLuaJIT::LUA_GCCOUNTB, 0))
         1
       end
-      @state.pcall!(0, 1, err_msg: "LuaGC#count_bytes!")
+      @state.pcall(0, 1) do |status|
+        raise LuaError.default_handler(@state, status)
+      end
       @state.to_i(-1).tap do
         @state.pop(1)
       end
@@ -65,7 +85,9 @@ module Luajit
     # the value of _size_.
     #
     # Returns 1 if the step finished a garbage-collection cycle.
-    def step!(size : Int32) : Int32
+    #
+    # Raises `LuaError` if operation fails
+    def step(size : Int32) : Int32
       @state.push_fn do |l|
         state = LuaState.new(l)
         step_size = state.to_i(-1)
@@ -74,7 +96,9 @@ module Luajit
         1
       end
       @state.push(size)
-      @state.pcall!(1, 1, err_msg: "LuaGC#step!")
+      @state.pcall(1, 1) do |status|
+        raise LuaError.default_handler(@state, status)
+      end
       @state.to_i(-1).tap do
         @state.pop(1)
       end
@@ -83,7 +107,9 @@ module Luajit
     # Sets data as the new value for the pause of the collector
     #
     # Returns the previous value of the pause.
-    def set_pause!(data : Int32) : Int32
+    #
+    # Raises `LuaError` if operation fails
+    def set_pause(data : Int32) : Int32
       @state.push_fn do |l|
         state = LuaState.new(l)
         d = state.to_i(-1)
@@ -92,7 +118,9 @@ module Luajit
         1
       end
       @state.push(data)
-      @state.pcall!(1, 1, err_msg: "LuaGC#set_pause!")
+      @state.pcall(1, 1) do |status|
+        raise LuaError.default_handler(@state, status)
+      end
       @state.to_i(-1).tap do
         @state.pop(1)
       end
@@ -101,7 +129,9 @@ module Luajit
     # Sets data as the new value for the step multiplier of the collector
     #
     # Returns the previous value of the step multiplier.
-    def set_step_multiplier!(data : Int32) : Int32
+    #
+    # Raises `LuaError` if operation fails
+    def set_step_multiplier(data : Int32) : Int32
       @state.push_fn do |l|
         state = LuaState.new(l)
         d = state.to_i(-1)
@@ -110,7 +140,9 @@ module Luajit
         1
       end
       @state.push(data)
-      @state.pcall!(1, 1, err_msg: "LuaGC#set_step_multiplier!")
+      @state.pcall(1, 1) do |status|
+        raise LuaError.default_handler(@state, status)
+      end
       @state.to_i(-1).tap do
         @state.pop(1)
       end
