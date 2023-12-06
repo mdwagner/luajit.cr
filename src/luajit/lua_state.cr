@@ -812,9 +812,9 @@ module Luajit
     # Concatenates the *n* values at the top of the stack, pops them,
     # and leaves the result at the top
     #
-    # Result is a no-op if *n* == 1
+    # If *n* == 1, does nothing
     #
-    # Result is "" if *n* == 0
+    # If *n* == 0, pushes empty string
     #
     # Raises `LuaError` if operation fails
     def concat(n : Int32) : Nil
@@ -1312,10 +1312,11 @@ module Luajit
     end
 
     # Checks whether the value at *index* is a userdata of *type*
+    # and returns it
     def check_userdata!(index : Int32, type : String) : Pointer(Void)
       if ptr = to_userdata?(index) # value is a userdata?
         if get_metatable(index)    # does it have a metatable?
-          get_registry(type)       # get correct metatable
+          get_metatable(type)       # get correct metatable
           if raw_eq(-1, -2)        # does it have correct mt?
             pop(2)                 # remove both metatables
             return ptr
