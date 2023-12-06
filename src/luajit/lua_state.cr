@@ -10,8 +10,6 @@ module Luajit
     # :nodoc:
     MT_NAME = "luajit_cr::__LuaState__"
 
-    @ptr : Pointer(LibLuaJIT::State)
-
     # :nodoc:
     #
     # Returns the pointer address of *state*
@@ -52,7 +50,7 @@ module Luajit
       end
     end
 
-    def initialize(@ptr)
+    def initialize(@ptr : Pointer(LibLuaJIT::State))
     end
 
     def to_unsafe
@@ -1103,21 +1101,6 @@ module Luajit
         set_global(modname)
       end
     end
-
-    # :nodoc:
-    # TODO
-    # - use `requiref` as baseline
-    # def register(l : Library) : Nil
-    # raise NotImplementedError.new("register(Library)")
-    # end
-
-    # :nodoc:
-    # TODO
-    # def register_library(name : String, & : Library ->) : Nil
-    # l = Library.new(name)
-    # yield l
-    # register(l)
-    # end
 
     # Opens a library with *name* and registers all functions in *regs*
     def register(name : String, regs : Array(LuaReg)) : Nil

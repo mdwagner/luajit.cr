@@ -1,7 +1,5 @@
 module Luajit
   struct LuaDebug
-    @debug : LibLuaJIT::Debug
-
     enum NameType
       Global
       Local
@@ -18,7 +16,7 @@ module Luajit
       Tail # function that did a tail call
     end
 
-    protected def initialize(@debug)
+    def initialize(@debug : LibLuaJIT::Debug)
     end
 
     def to_unsafe

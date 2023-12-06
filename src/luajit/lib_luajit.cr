@@ -250,4 +250,7 @@ module Luajit
     fun luaopen_ffi(l : State*) : Int
     fun luaopen_jit(l : State*) : Int
   end
+
+  alias LuaCFunction = LibLuaJIT::CFunction
+  alias LuaHook = LibLuaJIT::Hook
 end
