@@ -7,21 +7,15 @@ on:
     branches: "*"
 
 jobs:
-  specs:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest]
-        crystal_version: [latest]
-    runs-on: ${{ matrix.os }}
-    continue-on-error: false
+  linux-specs:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - name: Install LuaJIT
         run: sudo apt-get install luajit-5.1-dev
       - uses: crystal-lang/install-crystal@v1
         with:
-          crystal: ${{ matrix.crystal_version }}
+          crystal: latest
       - name: Run tests
         run: crystal spec
 

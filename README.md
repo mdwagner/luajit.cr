@@ -40,11 +40,11 @@ end
 
 - [x] LuaJIT bindings
 - [x] Works on Windows (+build script)
-- [x] luajit.cr LuaState
-- [ ] Better tests
-- [ ] Better docs + readme
+- [x] Safe wrappers
+- [x] Better tests
+- [x] Better docs + readme
 
-I have everything working and it should be usable to actually create stuff now, but haven't tested it enough. I'm hoping with more practical use it will have better test coverage.
+If you encounter any bugs, feel free to open an issue!
 
 ## Contributing
 
