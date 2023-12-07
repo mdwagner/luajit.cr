@@ -18,7 +18,7 @@ LuaJIT bindings for Crystal
 dependencies:
   luajit:
     github: mdwagner/luajit.cr
-    version: ~> 0.2.0
+    version: ~> 0.3.0
 ```
 
 3. Run `shards install`
