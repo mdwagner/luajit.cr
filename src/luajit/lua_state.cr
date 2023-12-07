@@ -690,6 +690,19 @@ module Luajit
       LibLuaJIT.lua_newuserdata(self, size)
     end
 
+    # :ditto:
+    def new_userdata(size : Int32) : Pointer(Void)
+      new_userdata(size.to_u64)
+    end
+
+    # Same as `#new_userdata`, but takes a pointer and makes stores its
+    # address inside the userdata pointer
+    def new_userdata(ptr : Pointer(Void)) : Pointer(UInt64)
+      new_userdata(sizeof(UInt64)).as(Pointer(UInt64)).tap do |ud_ptr|
+        ud_ptr.value = ptr.address
+      end
+    end
+
     # Pushes onto the stack the metatable of the value at *index*
     #
     # If *index* is not valid, or value does not have a metatable,
@@ -1102,6 +1115,18 @@ module Luajit
       end
     end
 
+    # Opens a *library*
+    #
+    # If *name?* == `false`, only registers library functions to table
+    # at the top of the stack
+    def register(library : LuaReg::Library, name? = true) : Nil
+      if name?
+        register(library.name, library.regs)
+      else
+        register(library.regs)
+      end
+    end
+
     # Opens a library with *name* and registers all functions in *regs*
     def register(name : String, regs : Array(LuaReg)) : Nil
       libs = [] of LibLuaJIT::Reg
@@ -1311,52 +1336,39 @@ module Luajit
       assert_type!(index, :userdata)
     end
 
-    # Checks whether the value at *index* is a userdata of *type*
+    # Checks whether the value at *index* is a userdata of type *tname*
     # and returns it
-    def check_userdata!(index : Int32, type : String) : Pointer(Void)
+    def check_userdata!(index : Int32, tname : String) : Pointer(Void)
       if ptr = to_userdata?(index) # value is a userdata?
         if get_metatable(index)    # does it have a metatable?
-          get_metatable(type)       # get correct metatable
+          get_metatable(tname)     # get correct metatable
           if raw_eq(-1, -2)        # does it have correct mt?
             pop(2)                 # remove both metatables
             return ptr
           end
         end
       end
-      raise_type_error!(index, type) # else error
+      raise_type_error!(index, tname) # else error
     end
 
-    # Creates a full userdata from *value* and pushes it on the stack
-    #
-    # NOTE: Use `#get_userdata` to retrieve it later.
-    def create_userdata(value : U) : Nil forall U
-      # create box
-      box = Box(U).box(value)
-      # track box
-      track(box)
-      # create userdata
-      ud_ptr = new_userdata(sizeof(UInt64).to_u64).as(Pointer(UInt64))
-      ud_ptr.value = box.address
-      # create metatable
-      new_metatable(value.class.to_s)
-      # set copy of metatable
-      push_value(-1)
-      set_metatable(-3)
-      # define metamethods for metatable
-      push("__gc")
-      push_fn_closure do |s|
-        s.untrack(box)
-        0
+    # Attaches a metatable to value at *index* with name *tname* if
+    # a metatable exists, otherwise returns `false`
+    def attach_metatable(index : Int32, tname : String) : Bool
+      index = abs_index(index)
+      get_metatable(tname)
+      if is_table?(-1)
+        set_metatable(index)
+        true
+      else
+        pop(1)
+        false
       end
-      raw_set(-3)
-      pop(1)
     end
 
-    # Retrieves a full userdata at *index* with return *type*
-    def get_userdata(index : Int32, type : U.class) : U forall U
-      ud_ptr = check_userdata!(index, type.to_s).as(Pointer(UInt64))
-      box = Pointer(Void).new(ud_ptr.value)
-      Box(U).unbox(box)
+    # Retrieves a full userdata at *index* with name *tname* and returns it
+    def get_userdata(index : Int32, tname : String) : Pointer(Void)
+      ud_ptr = check_userdata!(index, tname).as(Pointer(UInt64))
+      Pointer(Void).new(ud_ptr.value)
     end
 
     # https://www.lua.org/manual/5.1/manual.html#luaL_ref

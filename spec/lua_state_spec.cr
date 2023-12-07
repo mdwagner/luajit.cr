@@ -75,23 +75,41 @@ describe Luajit::LuaState do
     end
   end
 
-  describe "#create_userdata" do
+  describe "#new_userdata" do
     it "works with values" do
       Luajit.run do |state|
-        result = 999
-        state.create_userdata(result)
-        state.push(888)
-        state.get_userdata(-2, typeof(result)).should eq(result)
+        state.new_metatable("result")
+        state.pop(1)
+        result = 1000
+        box = Box(typeof(result)).box(result)
+        state.new_userdata(box)
+        state.attach_metatable(-1, "result").should be_true
+        Box(typeof(result)).unbox(state.get_userdata(-1, "result")).should eq(result)
 
-        SpecHelper.assert_stack_size!(state, 2)
+        SpecHelper.assert_stack_size!(state, 1)
       end
     end
 
     it "works with classes" do
       Luajit.run do |state|
+        state.new_metatable("result")
+        state.pop(1)
         result = SpecHelper::Sprite.new(100)
-        state.create_userdata(result)
-        state.get_userdata(-1, typeof(result)).x.should eq(100)
+        box = Box(typeof(result)).box(result)
+        state.new_userdata(box)
+        state.attach_metatable(-1, "result").should be_true
+        Box(typeof(result)).unbox(state.get_userdata(-1, "result")).should eq(result)
+
+        SpecHelper.assert_stack_size!(state, 1)
+      end
+    end
+  end
+
+  describe "#attach_userdata" do
+    it "fails if no metatable is created first" do
+      Luajit.run do |state|
+        state.new_table
+        state.attach_metatable(-1, "result").should be_false
 
         SpecHelper.assert_stack_size!(state, 1)
       end

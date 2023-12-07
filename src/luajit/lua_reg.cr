@@ -3,13 +3,22 @@ module Luajit
     getter name : String
     getter function : LuaCFunction
 
-    # Raises exception if passed block is a closure
-    def self.new(name : String, &block : LuaCFunction)
-      raise "block cannot be a closure" if block.closure?
-      new(name, block)
+    def initialize(@name, @function)
+      raise "block cannot be a closure" if @function.closure?
+    end
+  end
+
+  class LuaReg::Library
+    getter name : String
+    getter regs = [] of LuaReg
+
+    def initialize(@name)
     end
 
-    protected def initialize(@name, @function)
+    # Raises exception if passed block is a closure
+    def register(name : String, &block : LuaCFunction) : self
+      regs << LuaReg.new(name, block)
+      self
     end
   end
 end
