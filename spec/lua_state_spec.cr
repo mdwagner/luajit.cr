@@ -167,7 +167,7 @@ describe Luajit::LuaState do
       end
     end
 
-    it "pushes empty string if n == 1" do
+    it "pushes nothing if n == 1" do
       Luajit.run do |state|
         state.push("hello")
         state.push(' ')
@@ -180,7 +180,7 @@ describe Luajit::LuaState do
       end
     end
 
-    it "pushes nothing if n == 0" do
+    it "pushes empty string if n == 0" do
       Luajit.run do |state|
         state.push("hello")
         state.push(' ')
