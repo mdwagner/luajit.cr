@@ -75,6 +75,23 @@ describe Luajit::LuaState do
     end
   end
 
+  describe "#set_field" do
+    it "works" do
+      Luajit.run do |state|
+        state.new_table
+        state.push("hello world!")
+        state.set_field(-2, "message")
+        state.set_global("x")
+
+        state.execute(<<-'LUA').ok?.should be_true
+        assert(x.message == "hello world!")
+        LUA
+
+        SpecHelper.assert_stack_size!(state, 0)
+      end
+    end
+  end
+
   describe "#new_userdata" do
     it "works with values" do
       Luajit.run do |state|

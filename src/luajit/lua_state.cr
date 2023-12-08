@@ -178,11 +178,7 @@ module Luajit
       index2 = abs_index(index2)
       push_value(index1)
       push_value(index2)
-      push_fn do |l|
-        s = LuaState.new(l)
-        s.push(LibLuaJIT.lua_equal(s, -2, -1) == true.to_unsafe)
-        1
-      end
+      push_fn__eq
       insert(-3)
       pcall(2, 1) do |status|
         raise LuaError.pcall_handler(self, status, "lua_equal")
@@ -209,11 +205,7 @@ module Luajit
       index2 = abs_index(index2)
       push_value(index1)
       push_value(index2)
-      push_fn do |l|
-        s = LuaState.new(l)
-        s.push(LibLuaJIT.lua_lessthan(s, -2, -1) == true.to_unsafe)
-        1
-      end
+      push_fn__less_than
       insert(-3)
       pcall(2, 1) do |status|
         raise LuaError.pcall_handler(self, status, "lua_lessthan")
@@ -546,10 +538,7 @@ module Luajit
     def get_table(index : Int32) : Nil
       push_value(index)
       insert(-2)
-      push_fn do |l|
-        LibLuaJIT.lua_gettable(l, -2)
-        1
-      end
+      push_fn__get_table
       insert(-3)
       pcall(2, 1) do |status|
         raise LuaError.pcall_handler(self, status, "lua_gettable")
@@ -568,13 +557,7 @@ module Luajit
       return get_environment(name) if index == LibLuaJIT::LUA_ENVIRONINDEX
 
       push_value(index)
-      push_fn do |l|
-        s = LuaState.new(l)
-        k = s.to_string(-1)
-        s.pop(1)
-        LibLuaJIT.lua_getfield(s, -1, k)
-        1
-      end
+      push_fn__get_field
       insert(-2)
       push(name)
       pcall(2, 1) do |status|
@@ -586,12 +569,7 @@ module Luajit
     #
     # Raises `LuaError` if operation fails
     def get_global(name : String) : Nil
-      push_fn do |l|
-        s = LuaState.new(l)
-        k = s.to_string(-1)
-        LibLuaJIT.lua_getfield(s, LibLuaJIT::LUA_GLOBALSINDEX, k)
-        1
-      end
+      push_fn__get_global
       push(name)
       pcall(1, 1) do |status|
         raise LuaError.default_handler(self, status)
@@ -602,12 +580,7 @@ module Luajit
     #
     # Raises `LuaError` if operation fails
     def get_registry(name : String) : Nil
-      push_fn do |l|
-        s = LuaState.new(l)
-        k = s.to_string(-1)
-        LibLuaJIT.lua_getfield(s, LibLuaJIT::LUA_REGISTRYINDEX, k)
-        1
-      end
+      push_fn__get_registry
       push(name)
       pcall(1, 1) do |status|
         raise LuaError.default_handler(self, status)
@@ -630,12 +603,7 @@ module Luajit
     #
     # Raises `LuaError` if operation fails
     def get_environment(name : String) : Nil
-      push_fn do |l|
-        s = LuaState.new(l)
-        k = s.to_string(-1)
-        LibLuaJIT.lua_getfield(s, LibLuaJIT::LUA_ENVIRONINDEX, k)
-        1
-      end
+      push_fn__get_environment
       push(name)
       pcall(1, 1) do |status|
         raise LuaError.default_handler(self, status)
@@ -800,18 +768,7 @@ module Luajit
     def next(index : Int32) : Bool
       push_value(index)
       insert(-2)
-      push_fn do |l|
-        s = LuaState.new(l)
-        r = LibLuaJIT.lua_next(s, -2)
-        if r != 0
-          s.push(true)
-        else
-          s.push(nil)
-          s.push(nil)
-          s.push(false)
-        end
-        3
-      end
+      push_fn__next
       insert(-3)
       pcall(2, 3) do |status|
         raise LuaError.pcall_handler(self, status, "lua_next")
@@ -838,10 +795,7 @@ module Luajit
         return
       end
 
-      push_fn do |l|
-        LibLuaJIT.lua_concat(l, LuaState.new(l).size)
-        1
-      end
+      push_fn__concat
       insert(-(n) - 1)
       pcall(n, 1) do |status|
         raise LuaError.pcall_handler(self, status, "lua_concat")
@@ -969,10 +923,7 @@ module Luajit
     def set_table(index : Int32) : Nil
       push_value(index)
       insert(-3)
-      push_fn do |l|
-        LibLuaJIT.lua_settable(l, -3)
-        0
-      end
+      push_fn__set_table
       insert(-4)
       pcall(3, 0) do |status|
         raise LuaError.pcall_handler(self, status, "lua_settable")
@@ -992,13 +943,7 @@ module Luajit
 
       push_value(index)
       insert(-2)
-      push_fn do |l|
-        s = LuaState.new(l)
-        k = s.to_string(-1)
-        s.pop(1)
-        LibLuaJIT.lua_setfield(s, -2, k)
-        0
-      end
+      push_fn__set_field
       insert(-3)
       push(k)
       pcall(3, 0) do |status|
@@ -1010,13 +955,7 @@ module Luajit
     #
     # Raises `LuaError` if operation fails
     def set_global(name : String) : Nil
-      push_fn do |l|
-        s = LuaState.new(l)
-        k = s.to_string(-1)
-        s.pop(1)
-        LibLuaJIT.lua_setfield(s, LibLuaJIT::LUA_GLOBALSINDEX, k)
-        0
-      end
+      push_fn__set_global
       insert(-2)
       push(name)
       pcall(2, 0) do |status|
@@ -1028,13 +967,7 @@ module Luajit
     #
     # Raises `LuaError` if operation fails
     def set_registry(name : String) : Nil
-      push_fn do |l|
-        s = LuaState.new(l)
-        k = s.to_string(-1)
-        s.pop(1)
-        LibLuaJIT.lua_setfield(s, LibLuaJIT::LUA_REGISTRYINDEX, k)
-        0
-      end
+      push_fn__set_registry
       insert(-2)
       push(name)
       pcall(2, 0) do |status|
@@ -1046,13 +979,7 @@ module Luajit
     #
     # Raises `LuaError` if operation fails
     def set_environment(name : String) : Nil
-      push_fn do |l|
-        s = LuaState.new(l)
-        k = s.to_string(-1)
-        s.pop(1)
-        LibLuaJIT.lua_setfield(s, LibLuaJIT::LUA_ENVIRONINDEX, k)
-        0
-      end
+      push_fn__set_environment
       insert(-2)
       push(name)
       pcall(2, 0) do |status|
@@ -1476,6 +1403,137 @@ module Luajit
             break
           end
         end
+      end
+    end
+
+    private macro push_fn__eq
+      push_fn do |%lua_state|
+        %state = LuaState.new(%lua_state)
+        %state.push(LibLuaJIT.lua_equal(%state, -2, -1) == true.to_unsafe)
+        1
+      end
+    end
+
+    private macro push_fn__less_than
+      push_fn do |%lua_state|
+        %state = LuaState.new(%lua_state)
+        %state.push(LibLuaJIT.lua_lessthan(%state, -2, -1) == true.to_unsafe)
+        1
+      end
+    end
+
+    private macro push_fn__get_table
+      push_fn do |%lua_state|
+        LibLuaJIT.lua_gettable(%lua_state, -2)
+        1
+      end
+    end
+
+    private macro push_fn__get_field
+      push_fn do |%lua_state|
+        %state = LuaState.new(%lua_state)
+        %key = %state.to_string(-1)
+        %state.pop(1)
+        LibLuaJIT.lua_getfield(%state, -1, %key)
+        1
+      end
+    end
+
+    private macro push_fn__get_global
+      push_fn do |%lua_state|
+        %state = LuaState.new(%lua_state)
+        %key = %state.to_string(-1)
+        LibLuaJIT.lua_getfield(%state, LibLuaJIT::LUA_GLOBALSINDEX, %key)
+        1
+      end
+    end
+
+    private macro push_fn__get_registry
+      push_fn do |%lua_state|
+        %state = LuaState.new(%lua_state)
+        %key = %state.to_string(-1)
+        LibLuaJIT.lua_getfield(%state, LibLuaJIT::LUA_REGISTRYINDEX, %key)
+        1
+      end
+    end
+
+    private macro push_fn__get_environment
+      push_fn do |%lua_state|
+        %state = LuaState.new(%lua_state)
+        %key = %state.to_string(-1)
+        LibLuaJIT.lua_getfield(%state, LibLuaJIT::LUA_ENVIRONINDEX, %key)
+        1
+      end
+    end
+
+    private macro push_fn__next
+      push_fn do |%lua_state|
+        %state = LuaState.new(%lua_state)
+        %result = LibLuaJIT.lua_next(%state, -2)
+        if %result != 0
+          %state.push(true)
+        else
+          %state.push(nil)
+          %state.push(nil)
+          %state.push(false)
+        end
+        3
+      end
+    end
+
+    private macro push_fn__concat
+      push_fn do |%lua_state|
+        %state = LuaState.new(%lua_state)
+        %size = %state.size
+        LibLuaJIT.lua_concat(%lua_state, %size)
+        1
+      end
+    end
+
+    private macro push_fn__set_table
+      push_fn do |%lua_state|
+        LibLuaJIT.lua_settable(%lua_state, -3)
+        0
+      end
+    end
+
+    private macro push_fn__set_field
+      push_fn do |%lua_state|
+        %state = LuaState.new(%lua_state)
+        %key = %state.to_string(-1)
+        %state.pop(1)
+        LibLuaJIT.lua_setfield(%state, -2, %key)
+        0
+      end
+    end
+
+    private macro push_fn__set_global
+      push_fn do |%lua_state|
+        %state = LuaState.new(%lua_state)
+        %key = %state.to_string(-1)
+        %state.pop(1)
+        LibLuaJIT.lua_setfield(%state, LibLuaJIT::LUA_GLOBALSINDEX, %key)
+        0
+      end
+    end
+
+    private macro push_fn__set_registry
+      push_fn do |%lua_state|
+        %state = LuaState.new(%lua_state)
+        %key = %state.to_string(-1)
+        %state.pop(1)
+        LibLuaJIT.lua_setfield(%state, LibLuaJIT::LUA_REGISTRYINDEX, %key)
+        0
+      end
+    end
+
+    private macro push_fn__set_environment
+      push_fn do |%lua_state|
+        %state = LuaState.new(%lua_state)
+        %key = %state.to_string(-1)
+        %state.pop(1)
+        LibLuaJIT.lua_setfield(%state, LibLuaJIT::LUA_ENVIRONINDEX, %key)
+        0
       end
     end
   end
