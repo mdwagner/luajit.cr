@@ -99,8 +99,8 @@ describe Luajit::LuaState do
         state.pop(1)
         result = 1000
         box = Box(typeof(result)).box(result)
-        state.create_userdata(box)
-        state.attach_metatable(-1, "result").should be_true
+        state.track(box)
+        state.create_userdata(box, "result")
         Box(typeof(result)).unbox(state.get_userdata(-1, "result")).should eq(result)
 
         SpecHelper.assert_stack_size!(state, 1)
@@ -113,8 +113,8 @@ describe Luajit::LuaState do
         state.pop(1)
         result = SpecHelper::Sprite.new(100)
         box = Box(typeof(result)).box(result)
-        state.create_userdata(box)
-        state.attach_metatable(-1, "result").should be_true
+        state.track(box)
+        state.create_userdata(box, "result")
         Box(typeof(result)).unbox(state.get_userdata(-1, "result")).should eq(result)
 
         SpecHelper.assert_stack_size!(state, 1)
@@ -122,7 +122,7 @@ describe Luajit::LuaState do
     end
   end
 
-  describe "#attach_userdata" do
+  describe "#attach_metatable" do
     it "fails if no metatable is created first" do
       Luajit.run do |state|
         state.new_table

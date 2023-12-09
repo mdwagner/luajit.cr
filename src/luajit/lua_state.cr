@@ -662,11 +662,14 @@ module Luajit
       new_userdata(size.to_u64)
     end
 
-    # Same as `#new_userdata`, but takes a pointer and makes stores its
-    # address inside the userdata pointer
-    def create_userdata(ptr : Pointer(Void)) : Pointer(UInt64)
+    # Creates a full userdata with a type *tname*, and returns
+    # a pointer with the address of *ptr*
+    #
+    # See `#get_userdata`
+    def create_userdata(ptr : Pointer(Void), tname : String) : Pointer(UInt64)
       new_userdata(sizeof(UInt64)).as(Pointer(UInt64)).tap do |ud_ptr|
         ud_ptr.value = ptr.address
+        attach_metatable(-1, tname)
       end
     end
 
@@ -1332,6 +1335,9 @@ module Luajit
     end
 
     # Retrieves a full userdata at *index* with name *tname* and returns it
+    #
+    # NOTE: Can only be used if the userdata was originally created from
+    # `#create_userdata`.
     #
     # Raises `LuaError` if operation fails
     def get_userdata(index : Int32, tname : String) : Pointer(Void)
