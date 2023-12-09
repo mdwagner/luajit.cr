@@ -32,13 +32,10 @@ module Luajit
 
     # Creates a new `LuaState` and attaches a default `#at_panic` handler
     def self.create : LuaState
-      new(LibLuaJIT.luaL_newstate).tap do |state|
-        state.at_panic do |l|
-          STDERR.puts LuaError.at_panic_message(LuaState.new(l))
-          0
-        end
-        set_registry_address(state)
-      end
+      state = new(LibLuaJIT.luaL_newstate)
+      set_at_panic_handler(state)
+      set_registry_address(state)
+      state
     end
 
     # Destroys *state* and gives tracked values back to Crystal
@@ -590,12 +587,14 @@ module Luajit
     # Pushes onto the stack the metatable associated with *tname*
     # in the registry
     #
+    # Raises `LuaError` if operation fails
+    #
     # See `#new_metatable`
     def get_metatable(tname : String) : Nil
       begin
         get_registry(tname)
-      rescue LuaError
-        nil
+      rescue err : LuaError
+        raise LuaError.new("Failed to get metatable", err)
       end
     end
 
@@ -665,7 +664,7 @@ module Luajit
 
     # Same as `#new_userdata`, but takes a pointer and makes stores its
     # address inside the userdata pointer
-    def new_userdata(ptr : Pointer(Void)) : Pointer(UInt64)
+    def create_userdata(ptr : Pointer(Void)) : Pointer(UInt64)
       new_userdata(sizeof(UInt64)).as(Pointer(UInt64)).tap do |ud_ptr|
         ud_ptr.value = ptr.address
       end
@@ -788,13 +787,8 @@ module Luajit
     #
     # Raises `LuaError` if operation fails
     def concat(n : Int32) : Nil
-      if n < 1
-        push("")
-        return
-      elsif n == 1
-        return
-      end
-
+      push("") if n < 1
+      return if n < 2
       push_fn__concat
       insert(-(n) - 1)
       pcall(n, 1) do |status|
@@ -988,33 +982,51 @@ module Luajit
     end
 
     # Registers a global function
+    #
+    # Raises `LuaError` if operation fails
     def register_fn_global(name : String, &block : Function) : Nil
       push(block)
-      set_global(name)
+      begin
+        set_global(name)
+      rescue err : LuaError
+        raise LuaError.new("Failed to register global function", err)
+      end
     end
 
     # Registers a named function to table at the top of the stack
+    #
+    # Raises `LuaError` if operation fails
     def register_fn(name : String, &block : Function) : Nil
       assert_table!(-1)
       push(name)
       push(block)
-      set_table(-3)
+      begin
+        set_table(-3)
+      rescue err : LuaError
+        raise LuaError.new("Failed to register function", err)
+      end
     end
 
     # Ensure that stack[idx][fname] has a table and push that table onto the stack
     #
+    # Raises `LuaError` if operation fails
+    #
     # NOTE: Adopted from Lua 5.3
     def get_subtable(index : Int32, fname : String) : Bool
-      get_field(index, fname)
-      if is_table?(-1)
-        true
-      else
-        pop(1)
-        index = abs_index(index)
-        new_table
-        push_value(-1)
-        set_field(index, fname)
-        false
+      begin
+        get_field(index, fname)
+        if is_table?(-1)
+          true
+        else
+          pop(1)
+          index = abs_index(index)
+          new_table
+          push_value(-1)
+          set_field(index, fname)
+          false
+        end
+      rescue err : LuaError
+        raise LuaError.new("Failed to get subtable", err)
       end
     end
 
@@ -1023,22 +1035,28 @@ module Luajit
     # if 'glb' is true, also registers the result in the global table.
     # Leaves resulting module on the top.
     #
+    # Raises `LuaError` if operation fails
+    #
     # NOTE: Adopted from Lua 5.3
     def requiref(modname : String, openf : LuaCFunction, glb : Bool = false) : Nil
-      get_subtable("_LOADED")
-      get_field(-1, modname)
-      unless to_boolean(-1)
-        pop(1)
-        push(openf)
-        push(modname)
-        pcall(1, 1)
-        push_value(-1)
-        set_field(-3, modname)
-      end
-      remove(-2)
-      if glb
-        push_value(-1)
-        set_global(modname)
+      begin
+        get_subtable("_LOADED")
+        get_field(-1, modname)
+        unless to_boolean(-1)
+          pop(1)
+          push(openf)
+          push(modname)
+          pcall(1, 1)
+          push_value(-1)
+          set_field(-3, modname)
+        end
+        remove(-2)
+        if glb
+          push_value(-1)
+          set_global(modname)
+        end
+      rescue err : LuaError
+        raise LuaError.new("Failed to require", err)
       end
     end
 
@@ -1179,6 +1197,7 @@ module Luajit
       at_panic(block)
     end
 
+    # Raises `LuaError` at *pos* with *reason*
     def raise_arg_error!(pos : Int32, reason : String) : NoReturn
       if ar = get_stack(0)
         if get_info("n", ar)
@@ -1195,76 +1214,90 @@ module Luajit
       end
     end
 
+    # Raises `LuaError` at *pos* with expected *type*
     def raise_type_error!(pos : Int32, type : String) : NoReturn
       raise_arg_error!(pos, "'#{type}' expected, got '#{type_name_at(pos)}'")
     end
 
+    # Raises `LuaError` unless there is a value at *index*
     def assert_any!(index : Int32) : Nil
       if is_none?(index)
         raise_arg_error!(index, "value expected")
       end
     end
 
-    def assert_integer!(index : Int32) : Nil
-      if to_i64(index) == 0 && !is_number?(index) # avoid extra test when not 0
-        raise_type_error!(index, type_name(:number))
-      end
-    end
-
+    # Raises `LuaError` unless the value at *index* is a string with *size*
     def assert_string!(index : Int32, size : UInt64) : Nil
       unless LibLuaJIT.lua_tolstring(self, index, pointerof(size))
         raise_type_error!(index, type_name(:string))
       end
     end
 
+    # Raises `LuaError` unless the value at *index* is a string
     def assert_string!(index : Int32) : Nil
       unless LibLuaJIT.lua_tolstring(self, index, nil)
         raise_type_error!(index, type_name(:string))
       end
     end
 
+    # Raises `LuaError` unless the value at *index* is a number
     def assert_number!(index : Int32) : Nil
       if to_f64(index) == 0 && !is_number?(index) # avoid extra test when not 0
         raise_type_error!(index, type_name(:number))
       end
     end
 
+    # :ditto:
+    def assert_integer!(index : Int32) : Nil
+      assert_number!(index)
+    end
+
+    # Raises `LuaError` unless the value at *index* is *type*
     def assert_type!(index : Int32, type : LuaType) : Nil
       unless get_type(index) == type
         raise_type_error!(index, type_name(type))
       end
     end
 
+    # Raises `LuaError` unless the value at *index* is nil
     def assert_nil!(index : Int32) : Nil
       assert_type!(index, :nil)
     end
 
+    # Raises `LuaError` unless the value at *index* is a boolean
     def assert_bool!(index : Int32) : Nil
       assert_type!(index, :boolean)
     end
 
+    # Raises `LuaError` unless the value at *index* is a light userdata
     def assert_light_userdata!(index : Int32) : Nil
       assert_type!(index, :light_userdata)
     end
 
+    # Raises `LuaError` unless the value at *index* is a table
     def assert_table!(index : Int32) : Nil
       assert_type!(index, :table)
     end
 
+    # Raises `LuaError` unless the value at *index* is a function
     def assert_function!(index : Int32) : Nil
       assert_type!(index, :function)
     end
 
+    # Raises `LuaError` unless the value at *index* is a thread
     def assert_thread!(index : Int32) : Nil
       assert_type!(index, :thread)
     end
 
+    # Raises `LuaError` unless the value at *index* is userdata
     def assert_userdata!(index : Int32) : Nil
       assert_type!(index, :userdata)
     end
 
     # Checks whether the value at *index* is a userdata of type *tname*
     # and returns it
+    #
+    # Raises `LuaError` unless *tname* matches
     def check_userdata!(index : Int32, tname : String) : Pointer(Void)
       if ptr = to_userdata?(index) # value is a userdata?
         if get_metatable(index)    # does it have a metatable?
@@ -1280,22 +1313,34 @@ module Luajit
 
     # Attaches a metatable to value at *index* with name *tname* if
     # a metatable exists, otherwise returns `false`
+    #
+    # Raises `LuaError` if operation fails
     def attach_metatable(index : Int32, tname : String) : Bool
-      index = abs_index(index)
-      get_metatable(tname)
-      if is_table?(-1)
-        set_metatable(index)
-        true
-      else
-        pop(1)
-        false
+      begin
+        index = abs_index(index)
+        get_metatable(tname)
+        if is_table?(-1)
+          set_metatable(index)
+          true
+        else
+          pop(1)
+          false
+        end
+      rescue err : LuaError
+        raise LuaError.new("Failed to attach metatable", err)
       end
     end
 
     # Retrieves a full userdata at *index* with name *tname* and returns it
+    #
+    # Raises `LuaError` if operation fails
     def get_userdata(index : Int32, tname : String) : Pointer(Void)
-      ud_ptr = check_userdata!(index, tname).as(Pointer(UInt64))
-      Pointer(Void).new(ud_ptr.value)
+      begin
+        ud_ptr = check_userdata!(index, tname).as(Pointer(UInt64))
+        Pointer(Void).new(ud_ptr.value)
+      rescue err : LuaError
+        raise LuaError.new("Failed to get userdata", err)
+      end
     end
 
     # https://www.lua.org/manual/5.1/manual.html#luaL_ref
@@ -1533,6 +1578,15 @@ module Luajit
         %key = %state.to_string(-1)
         %state.pop(1)
         LibLuaJIT.lua_setfield(%state, LibLuaJIT::LUA_ENVIRONINDEX, %key)
+        0
+      end
+    end
+
+    private macro set_at_panic_handler(lua)
+      {{lua}}.at_panic do |%lua_state|
+        %state = LuaState.new(%lua_state)
+        %message = LuaError.at_panic_message(%state)
+        STDERR.puts(%message)
         0
       end
     end

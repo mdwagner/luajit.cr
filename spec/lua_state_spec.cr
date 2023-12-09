@@ -92,14 +92,14 @@ describe Luajit::LuaState do
     end
   end
 
-  describe "#new_userdata" do
+  describe "#create_userdata" do
     it "works with values" do
       Luajit.run do |state|
         state.new_metatable("result")
         state.pop(1)
         result = 1000
         box = Box(typeof(result)).box(result)
-        state.new_userdata(box)
+        state.create_userdata(box)
         state.attach_metatable(-1, "result").should be_true
         Box(typeof(result)).unbox(state.get_userdata(-1, "result")).should eq(result)
 
@@ -113,7 +113,7 @@ describe Luajit::LuaState do
         state.pop(1)
         result = SpecHelper::Sprite.new(100)
         box = Box(typeof(result)).box(result)
-        state.new_userdata(box)
+        state.create_userdata(box)
         state.attach_metatable(-1, "result").should be_true
         Box(typeof(result)).unbox(state.get_userdata(-1, "result")).should eq(result)
 
@@ -215,7 +215,7 @@ describe Luajit::LuaState do
       end
     end
 
-    it "pushes empty string if n == 0" do
+    it "pushes empty string if n < 1" do
       Luajit.run do |state|
         state.push("hello")
         state.push(' ')
@@ -224,7 +224,23 @@ describe Luajit::LuaState do
         state.concat(0)
         state.to_string(-1).should eq("")
 
-        SpecHelper.assert_stack_size!(state, 5)
+        state.concat(-1)
+        state.to_string(-1).should eq("")
+
+        SpecHelper.assert_stack_size!(state, 6)
+      end
+    end
+  end
+
+  describe "#get_metatable" do
+    it "works" do
+      Luajit.run do |state|
+        state.new_metatable("HelloWorld")
+        state.pop(1)
+        state.get_metatable("HelloWorld")
+        state.is_table?(-1).should be_true
+
+        SpecHelper.assert_stack_size!(state, 1)
       end
     end
   end
