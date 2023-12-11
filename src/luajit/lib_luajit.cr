@@ -252,5 +252,6 @@ module Luajit
   end
 
   alias LuaCFunction = LibLuaJIT::CFunction
+  alias LuaDebug = LibLuaJIT::Debug
   alias LuaHook = LibLuaJIT::Hook
 end

@@ -424,7 +424,7 @@ module Luajit
     # https://www.lua.org/manual/5.1/manual.html#lua_getstack
     def get_stack(level : Int32) : LuaDebug?
       if LibLuaJIT.lua_getstack(self, level, out ar) == true.to_unsafe
-        LuaDebug.new(ar)
+        ar
       end
     end
 
@@ -432,7 +432,7 @@ module Luajit
     #
     # https://www.lua.org/manual/5.1/manual.html#lua_getinfo
     def get_info(what : String, ar : LuaDebug) : LuaDebug?
-      if LibLuaJIT.lua_getinfo(self, what, ar) != 0
+      if LibLuaJIT.lua_getinfo(self, what, pointerof(ar)) != 0
         ar
       end
     end
@@ -441,7 +441,7 @@ module Luajit
     #
     # https://www.lua.org/manual/5.1/manual.html#lua_getlocal
     def get_local(ar : LuaDebug, n : Int32 = 1) : String?
-      if ptr = LibLuaJIT.lua_getlocal(self, ar, n)
+      if ptr = LibLuaJIT.lua_getlocal(self, pointerof(ar), n)
         String.new(ptr)
       end
     end
@@ -450,7 +450,7 @@ module Luajit
     #
     # https://www.lua.org/manual/5.1/manual.html#lua_setlocal
     def set_local(ar : LuaDebug, n : Int32 = 1) : String?
-      if ptr = LibLuaJIT.lua_setlocal(self, ar, n)
+      if ptr = LibLuaJIT.lua_setlocal(self, pointerof(ar), n)
         String.new(ptr)
       end
     end
@@ -1202,19 +1202,7 @@ module Luajit
 
     # Raises `LuaError` at *pos* with *reason*
     def raise_arg_error!(pos : Int32, reason : String) : NoReturn
-      if ar = get_stack(0)
-        if get_info("n", ar)
-          if ar.name_type.method?
-            pos -= 1    # do not count `self`
-            if pos == 0 # error is in the self argument itself?
-              raise LuaError.new("calling '#{ar.name}' on bad self (#{reason})")
-            end
-          end
-        end
-        raise LuaError.new("bad argument ##{pos} to '#{ar.name || "?"}' (#{reason})")
-      else # no stack frame?
-        raise LuaError.new("bad argument ##{pos} to (#{reason})")
-      end
+      raise LuaError.new("bad argument ##{pos} (#{reason})")
     end
 
     # Raises `LuaError` at *pos* with expected *type*

@@ -6,6 +6,8 @@ require "./luajit/lua_any"
 require "./luajit/*"
 
 module Luajit
+  alias Config = LuaBinding::LuaConfig
+
   # Same as `LuaState.create`
   def self.new : LuaState
     LuaState.create
