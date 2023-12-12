@@ -245,13 +245,12 @@ describe Luajit::LuaState do
     end
   end
 
-  describe "Macros" do
+  describe "LuaBinding" do
     it "works" do
       Luajit.run do |state|
-        Luajit.generate_lua_binding(state, SpecHelper::Sprite)
+        Luajit::LuaBinding.generate_lua_binding(state, SpecHelper::Sprite)
 
         state.execute(<<-'LUA').ok?.should be_true
-        local Sprite = _G["SpecHelper::Sprite"]
         local sprite = Sprite.new()
         assert(sprite:x() == 1000)
         LUA
@@ -260,11 +259,11 @@ describe Luajit::LuaState do
 
     it "works with different global" do
       Luajit.run do |state|
-        Luajit.generate_lua_binding(state, SpecHelper::Sprite2)
+        Luajit::LuaBinding.generate_lua_binding(state, SpecHelper::Sprite2)
 
         state.execute(<<-'LUA').ok?.should be_true
         local sprite = Sprite.new()
-        assert(sprite:x() == 1000)
+        assert(sprite:x() == 5000)
         LUA
       end
     end

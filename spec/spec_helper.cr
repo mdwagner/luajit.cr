@@ -9,49 +9,42 @@ module SpecHelper
   class Sprite
     include Luajit::LuaBinding
 
-    property x : Int32
-
-    @[LuaClass(name: "new")]
-    def self._new(state : LuaState) : Int32
+    def_class_method "new" do |state|
       _self = new(1000)
-      box = Box(Sprite).box(_self)
-      state.track(box)
-      state.create_userdata(box, Luajit.metatable(SpecHelper::Sprite))
+      Luajit::LuaBinding.setup_userdata(state, _self, self)
       1
     end
 
-    @[LuaInstance(name: "x")]
-    def self._x(state : LuaState) : Int32
-      ud_ptr = state.get_userdata(1, Luajit.metatable(SpecHelper::Sprite))
-      _self = Box(Sprite).unbox(ud_ptr)
+    def_instance_method "x" do |state|
+      _self = Luajit::LuaBinding.userdata_value(state, self)
       state.push(_self.x)
       1
     end
+
+    property x : Int32
 
     def initialize(@x)
     end
   end
 
-  @[Luajit::Config(global: "Sprite")]
   class Sprite2
     include Luajit::LuaBinding
 
+    global_name "Sprite"
+
+    def_class_method "new" do |state|
+      _self = new(5000)
+      Luajit::LuaBinding.setup_userdata(state, _self, self)
+      1
+    end
+
+    def_instance_method "x" do |state|
+      _self = Luajit::LuaBinding.userdata_value(state, self)
+      state.push(_self.x)
+      1
+    end
+
     property x : Int32
-
-    def_lua self.new do
-      _self = new(1000)
-      box = Box(Sprite2).box(_self)
-      __state.track(box)
-      __state.create_userdata(box, Luajit.metatable(SpecHelper::Sprite2))
-      1
-    end
-
-    def_lua x do
-      ud_ptr = __state.get_userdata(1, Luajit.metatable(SpecHelper::Sprite2))
-      _self = Box(Sprite2).unbox(ud_ptr)
-      __state.push(_self.x)
-      1
-    end
 
     def initialize(@x)
     end
