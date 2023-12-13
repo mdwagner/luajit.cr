@@ -93,7 +93,7 @@ end
 - [x] Safe wrappers
 - [x] Better tests
 - [x] Better docs + readme
-- [ ] Macros for generating Crystal to Lua types/classes
+- [x] Crystal to Lua object wrapper
 
 If you encounter any bugs, feel free to open an issue!
 
