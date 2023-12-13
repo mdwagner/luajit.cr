@@ -35,20 +35,17 @@ module Luajit
 
   # Creates a Lua object for *type*
   #
-  # NOTE: Will _mutate_ *type* if no global name or metatable name is set
+  # NOTE: Will mutate *type* global name or metatable name unless set
   def self.create_lua_object(state : LuaState, type : T.class) : Nil forall T
     {% unless T < Luajit::LuaObject %}
       {% raise "'type' argument must be a Luajit::LuaObject" %}
     {% end %}
 
-    state.new_table
-    class_table_index = state.size
-
     unless type.global?
       type.global_name(type.default_global)
     end
-    state.push_value(class_table_index)
-    state.set_global(type.global)
+    state.register(type.global)
+    class_table_index = state.size
 
     unless type.metatable?
       type.metatable_name(type.global)
@@ -75,15 +72,16 @@ module Luajit
     end
     state.set_table(instance_table_index)
 
-    type.instance_methods.each do |name, proc|
-      next if name == "__gc"
+    type.instance_methods.reject("__gc").each do |name, proc|
       state.push(name)
       state.push(proc)
       state.set_table(instance_table_index)
     end
 
-    state.push_value(instance_table_index)
-    state.set_field(instance_table_index, "__index")
+    unless type.instance_methods["__index"]?
+      state.push_value(instance_table_index)
+      state.set_field(instance_table_index, "__index")
+    end
   end
 
   # Converts *value* into full userdata with metatable *type*

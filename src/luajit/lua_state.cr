@@ -1010,73 +1010,8 @@ module Luajit
       end
     end
 
-    # Ensure that stack[idx][fname] has a table and push that table onto the stack
-    #
-    # Raises `LuaError` if operation fails
-    #
-    # NOTE: Adopted from Lua 5.3
-    def get_subtable(index : Int32, fname : String) : Bool
-      begin
-        get_field(index, fname)
-        if is_table?(-1)
-          true
-        else
-          pop(1)
-          index = abs_index(index)
-          new_table
-          push_value(-1)
-          set_field(index, fname)
-          false
-        end
-      rescue err : LuaError
-        raise LuaError.new("Failed to get subtable", err)
-      end
-    end
-
-    # Stripped-down 'require': After checking "loaded" table, calls 'openf'
-    # to open a module, registers the result in 'package.loaded' table and,
-    # if 'glb' is true, also registers the result in the global table.
-    # Leaves resulting module on the top.
-    #
-    # Raises `LuaError` if operation fails
-    #
-    # NOTE: Adopted from Lua 5.3
-    def requiref(modname : String, openf : LuaCFunction, glb : Bool = false) : Nil
-      begin
-        get_subtable("_LOADED")
-        get_field(-1, modname)
-        unless to_boolean(-1)
-          pop(1)
-          push(openf)
-          push(modname)
-          pcall(1, 1)
-          push_value(-1)
-          set_field(-3, modname)
-        end
-        remove(-2)
-        if glb
-          push_value(-1)
-          set_global(modname)
-        end
-      rescue err : LuaError
-        raise LuaError.new("Failed to require", err)
-      end
-    end
-
-    # Opens a *library*
-    #
-    # If *name?* == `false`, only registers library functions to table
-    # at the top of the stack
-    def register(library : LuaReg::Library, name? = true) : Nil
-      if name?
-        register(library.name, library.regs)
-      else
-        register(library.regs)
-      end
-    end
-
     # Opens a library with *name* and registers all functions in *regs*
-    def register(name : String, regs : Array(LuaReg)) : Nil
+    def register(name : String, regs = [] of LuaReg) : Nil
       libs = [] of LibLuaJIT::Reg
       regs.each do |reg|
         libs << LibLuaJIT::Reg.new(name: reg.name, func: reg.function.pointer)
