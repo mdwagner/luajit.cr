@@ -34,6 +34,56 @@ Luajit.run do |state|
   print("Hello World!")
   LUA
 end
+
+# Crystal type to Lua object
+class Account < Luajit::LuaObject
+  def_class_method "new" do |state|
+    _self = new
+    Luajit.setup_userdata(state, _self, self)
+    1
+  end
+
+  def_instance_method "deposit" do |state|
+    _self = Luajit.userdata_value(state, self, 1)
+    value = state.to_i(2)
+    _self.deposit(value)
+    0
+  end
+
+  def_instance_method "withdraw" do |state|
+    _self = Luajit.userdata_value(state, self, 1)
+    value = state.to_i(2)
+    _self.withdraw(value)
+    0
+  end
+
+  def_instance_method "get_balance" do |state|
+    _self = Luajit.userdata_value(state, self, 1)
+    state.push(_self.balance)
+    1
+  end
+
+  property balance : Int32 = 0
+
+  def deposit(value : Int32)
+    self.balance += value
+  end
+
+  def withdraw(value : Int32)
+    self.balance -= value
+  end
+end
+
+Luajit.run do |state|
+  Luajit.create_lua_object(state, Account)
+
+  state.execute! <<-'LUA'
+  local account = Account.new()
+  account:deposit(2000)
+  account:withdraw(100)
+  assert(account:get_balance() == 1900)
+  LUA
+end
 ```
 
 ## Development
