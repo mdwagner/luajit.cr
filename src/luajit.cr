@@ -32,4 +32,76 @@ module Luajit
       close(state)
     end
   end
+
+  # Creates a Lua object for *type*
+  #
+  # NOTE: Will _mutate_ *type* if no global name or metatable name is set
+  def self.create_lua_object(state : LuaState, type : T.class) : Nil forall T
+    {% unless T < Luajit::LuaObject %}
+      {% raise "'type' argument must be a Luajit::LuaObject" %}
+    {% end %}
+
+    state.new_table
+    class_table_index = state.size
+
+    unless type.global?
+      type.global_name(type.default_global)
+    end
+    state.push_value(class_table_index)
+    state.set_global(type.global)
+
+    unless type.metatable?
+      type.metatable_name(type.global)
+    end
+    state.new_metatable(type.metatable)
+    instance_table_index = state.size
+
+    type.class_methods.each do |name, proc|
+      state.push(name)
+      state.push(proc)
+      state.set_table(class_table_index)
+    end
+
+    state.push("__gc")
+    state.push_fn_closure do |_state|
+      if _state.is_userdata?(-1)
+        _state.untrack(_state.get_userdata(-1, type.metatable))
+      end
+      if proc = type.instance_methods["__gc"]?
+        proc.call(_state)
+      else
+        0
+      end
+    end
+    state.set_table(instance_table_index)
+
+    type.instance_methods.each do |name, proc|
+      next if name == "__gc"
+      state.push(name)
+      state.push(proc)
+      state.set_table(instance_table_index)
+    end
+
+    state.push_value(instance_table_index)
+    state.set_field(instance_table_index, "__index")
+  end
+
+  # Converts *value* into full userdata with metatable *type*
+  def self.setup_userdata(state : LuaState, value : T, type : U.class) : Nil forall T, U
+    {% unless U < Luajit::LuaObject %}
+      {% raise "'type' argument must be a Luajit::LuaObject" %}
+    {% end %}
+    box = Box(T).box(value)
+    state.track(box)
+    state.create_userdata(box, type.metatable)
+  end
+
+  # Gets value of userdata of *type* at *index*
+  def self.userdata_value(state : LuaState, type : T.class, index : Int32) : T forall T
+    {% unless T < Luajit::LuaObject %}
+      {% raise "'type' argument must be a Luajit::LuaObject" %}
+    {% end %}
+    ud_ptr = state.get_userdata(index, type.metatable)
+    Box(T).unbox(ud_ptr)
+  end
 end

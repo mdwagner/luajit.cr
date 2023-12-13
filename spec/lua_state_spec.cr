@@ -244,28 +244,4 @@ describe Luajit::LuaState do
       end
     end
   end
-
-  describe "LuaBinding" do
-    it "works" do
-      Luajit.run do |state|
-        Luajit::LuaBinding.generate_lua_binding(state, SpecHelper::Sprite)
-
-        state.execute(<<-'LUA').ok?.should be_true
-        local sprite = Sprite.new()
-        assert(sprite:x() == 1000)
-        LUA
-      end
-    end
-
-    it "works with different global" do
-      Luajit.run do |state|
-        Luajit::LuaBinding.generate_lua_binding(state, SpecHelper::Sprite2)
-
-        state.execute(<<-'LUA').ok?.should be_true
-        local sprite = Sprite.new()
-        assert(sprite:x() == 5000)
-        LUA
-      end
-    end
-  end
 end

@@ -6,17 +6,15 @@ module SpecHelper
     {{state}}.size.should eq({{size}})
   end
 
-  class Sprite
-    include Luajit::LuaBinding
-
+  class Sprite < Luajit::LuaObject
     def_class_method "new" do |state|
       _self = new(1000)
-      Luajit::LuaBinding.setup_userdata(state, _self, self)
+      Luajit.setup_userdata(state, _self, self)
       1
     end
 
     def_instance_method "x" do |state|
-      _self = Luajit::LuaBinding.userdata_value(state, self)
+      _self = Luajit.userdata_value(state, self, 1)
       state.push(_self.x)
       1
     end
@@ -27,19 +25,59 @@ module SpecHelper
     end
   end
 
-  class Sprite2
-    include Luajit::LuaBinding
-
-    global_name "Sprite"
+  class Sprite2 < Luajit::LuaObject
+    global_name "SpriteGlob"
 
     def_class_method "new" do |state|
       _self = new(5000)
-      Luajit::LuaBinding.setup_userdata(state, _self, self)
+      Luajit.setup_userdata(state, _self, self)
       1
     end
 
     def_instance_method "x" do |state|
-      _self = Luajit::LuaBinding.userdata_value(state, self)
+      _self = Luajit.userdata_value(state, self, 1)
+      state.push(_self.x)
+      1
+    end
+
+    property x : Int32
+
+    def initialize(@x)
+    end
+  end
+
+  class Sprite3 < Luajit::LuaObject
+    metatable_name "SpriteMeta"
+
+    def_class_method "new" do |state|
+      _self = new(3000)
+      Luajit.setup_userdata(state, _self, self)
+      1
+    end
+
+    def_instance_method "x" do |state|
+      _self = Luajit.userdata_value(state, self, 1)
+      state.push(_self.x)
+      1
+    end
+
+    property x : Int32
+
+    def initialize(@x)
+    end
+  end
+
+  class Sprite4 < Luajit::LuaObject
+    global_name(self.name)
+
+    def_class_method "new" do |state|
+      _self = new(8000)
+      Luajit.setup_userdata(state, _self, self)
+      1
+    end
+
+    def_instance_method "x" do |state|
+      _self = Luajit.userdata_value(state, self, 1)
       state.push(_self.x)
       1
     end
