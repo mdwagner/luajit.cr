@@ -87,4 +87,24 @@ module SpecHelper
     def initialize(@x)
     end
   end
+
+  class SpriteStruct < Luajit::LuaObject
+    global_name "Sprite"
+
+    def_class_method "new" do |state|
+      state.push({
+        "x" => 250,
+      })
+      state.attach_metatable(-1, self.metatable)
+      1
+    end
+
+    def_instance_method "get_x" do |state|
+      hash = state.to_h(1)
+      x = hash["x"].as_f.to_i
+      state.remove_refs(hash)
+      state.push(x)
+      1
+    end
+  end
 end

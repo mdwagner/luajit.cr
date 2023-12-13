@@ -47,5 +47,17 @@ describe Luajit::LuaObject do
         LUA
       end
     end
+
+    it "works with table instead of userdata" do
+      Luajit.run do |state|
+        Luajit.create_lua_object(state, SpecHelper::SpriteStruct)
+
+        state.execute!(<<-'LUA')
+        local sprite = Sprite.new()
+        assert(sprite.x == 250)
+        assert(sprite:get_x() == 250)
+        LUA
+      end
+    end
   end
 end
