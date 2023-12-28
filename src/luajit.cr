@@ -102,4 +102,31 @@ module Luajit
     ud_ptr = state.get_userdata(index, type.metatable)
     Box(T).unbox(ud_ptr)
   end
+
+  # Sets `NIL` as a global value with metatable name *mt_name*
+  #
+  # See `.is_global_nil?`
+  def self.setup_global_nil(state : LuaState, mt_name = "luajit_cr::__NIL__") : Nil
+    state.new_userdata(0_u64)
+    state.push({
+      "__tostring" => Luajit::LuaState::Function.new { |__state|
+        __state.push("NIL")
+        1
+      }
+    })
+    state.push_value(-1)
+    state.set_registry(mt_name)
+    state.set_metatable(-2)
+    state.set_global("NIL")
+  end
+
+  # Checks if value at *index* is the global `NIL` value with metatable name *mt_name*
+  def self.is_global_nil?(state : LuaState, index : Int32, mt_name = "luajit_cr::__NIL__") : Bool
+    begin
+      state.check_userdata!(index, mt_name)
+      true
+    rescue LuaError
+      false
+    end
+  end
 end
