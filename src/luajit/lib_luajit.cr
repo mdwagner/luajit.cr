@@ -1,8 +1,13 @@
 module Luajit
   {% if flag?(:win32) %}
-    @[Link({{ env("LUAJIT_CR_LIB_PATH") || "#{__DIR__}\\..\\..\\ext\\luajit\\lua51" }})]
+    # NOTE: Looks up "lua51.lib", "lua51-static.lib", or "lua51-dynamic.lib"
+    @[Link("lua51")]
   {% else %}
-    @[Link(ldflags: "`pkg-config --libs luajit`")]
+    @[Link("luajit")]
+  {% end %}
+  {% if compare_versions(Crystal::VERSION, "1.11.0") >= 0 %}
+    # EXPERIMENTAL: Requires "-Dpreview_dll" for dynamic linking
+    @[Link(dll: "lua51.dll")]
   {% end %}
   lib LibLuaJIT
     LUA_MULTRET        =      -1
