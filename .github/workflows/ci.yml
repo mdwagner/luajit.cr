@@ -28,4 +28,4 @@ jobs:
       - name: Build LuaJIT for Windows
         run: .\scripts\build.ps1
       - name: Run tests
-        run: crystal spec --link-flags="/LIBPATH:$(Get-Location)\ext\luajit"
+        run: crystal spec
