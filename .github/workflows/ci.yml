@@ -26,6 +26,6 @@ jobs:
       - uses: crystal-lang/install-crystal@v1
       - uses: ilammy/msvc-dev-cmd@v1
       - name: Build LuaJIT for Windows
-        run: .\scripts\build_luajit.bat
+        run: .\scripts\build.ps1
       - name: Run tests
-        run: crystal spec
+        run: crystal spec --link-flags="/LIBPATH:$(Get-Location)\ext\luajit"

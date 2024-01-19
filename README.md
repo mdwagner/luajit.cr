@@ -6,11 +6,12 @@ LuaJIT bindings for Crystal
 
 1. Install [LuaJIT](https://luajit.org)
     - [Linux](https://www.google.com/search?q=install+luajit+linux)
-        - Install with package manager
     - [Mac](https://www.google.com/search?q=install+luajit+mac)
-        - Install with brew
+        - `brew install luajit`
     - [Windows](https://www.google.com/search?q=install+luajit+windows)
-        - Run `.\scripts\build_luajit.bat` to clone, build, and install LuaJIT library into `ext/` directory
+        - Execute `.\scripts\build.ps1`
+        - See output for `--link-flags`
+        - Add to crystal commands, e.g. `crystal run --link-flags="/LIBPATH:<absolute location to ext\luajit>" src/example.cr`
 
 2. Add the dependency to your `shard.yml`:
 
