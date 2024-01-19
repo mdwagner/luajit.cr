@@ -47,11 +47,9 @@ module Luajit
       end
     end
 
-    def initialize(@ptr : Pointer(LibLuaJIT::State))
-    end
+    getter to_unsafe : Pointer(LibLuaJIT::State)
 
-    def to_unsafe
-      @ptr
+    def initialize(@to_unsafe)
     end
 
     # :nodoc:
