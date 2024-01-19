@@ -1,11 +1,19 @@
 name: luajit
 version: 0.4.0
+description: "LuaJIT bindings for Crystal"
+
+repository: "https://github.com/mdwagner/luajit.cr"
 license: MIT
+documentation: "https://crystaldoc.info/github/mdwagner/luajit.cr/v0.4.0"
 
 authors:
   - Michael Wagner <mdwranger@gmail.com>
 
 crystal: ~> 1.8
+
+libraries:
+  libluajit51: "~> 2.1"
+  lua51: "*"
 
 crystalline:
   main: spec/spec_helper.cr

@@ -1,6 +1,6 @@
 module Luajit
   {% if flag?(:win32) %}
-    # NOTE: Looks up "lua51.lib", "lua51-static.lib", or "lua51-dynamic.lib"
+    # NOTE: Looks up either "lua51.lib", "lua51-static.lib", or "lua51-dynamic.lib"
     @[Link("lua51")]
   {% else %}
     @[Link("luajit")]
