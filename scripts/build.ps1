@@ -40,6 +40,6 @@ if (-not (Test-Path -Path "$luaExtDir\lua51.lib")) {
     # Remove the temporary directory
     Remove-Item -Path $luaDir -Recurse -Force
 
-    Write-Output "Add the following to any crystal commands:"
-    Write-Output "  --link-flags=/LIBPATH:$luaExtDir"
+    Write-Output "Add the following to any linker flags:"
+    Write-Output "  /LIBPATH:$luaExtDir"
 }

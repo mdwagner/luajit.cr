@@ -12,7 +12,7 @@ authors:
 crystal: ~> 1.8
 
 libraries:
-  libluajit51: "~> 2.1"
+  libluajit-5.1: "~> 2.1"
   lua51: "*"
 
 crystalline:

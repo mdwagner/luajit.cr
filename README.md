@@ -9,6 +9,7 @@ LuaJIT bindings for Crystal
     - [Mac](https://www.google.com/search?q=install+luajit+mac)
         - `brew install luajit`
     - [Windows](https://www.google.com/search?q=install+luajit+windows)
+        - `.\scripts\build.ps1`
         - [See below](#windows)
 
 2. Add the dependency to your `shard.yml`:
@@ -26,33 +27,24 @@ dependencies:
 
 #### Simple
 
-1. Run `.\scripts\build.ps1`
-2. Check output for `--link-flags`
-3. Add `--link-flags` to existing `crystal` commands
+1. Run `.\scripts\build.ps1` to install to `ext\luajit` directory
 
 Example (powershell):
 
 ```
 .\scripts\build.ps1
 # ...build output...
-# Add the following to any crystal commands:
-#   --link-flags=/LIBPATH:C:\Lua
-crystal run --link-flags=/LIBPATH:C:\Lua src\example.cr
+crystal run src\example.cr
 ```
 
 #### Advanced
 
-There are a couple ways to avoid needing to add linker flags on every command,
-but they require a little more work.
+If you would rather Bring-Your-Own-LuaJIT, the following changes must be made:
 
-- Modify `.\scripts\build.ps1` to install to a more global directory (e.g. `C:\Lua`)
-    - Add global directory to environment variable `CRYSTAL_LIBRARY_PATH`
-        - NOTE: make sure to still include Crystal's compiler directory as well (can be found by running `crystal env CRYSTAL_LIBRARY_PATH`)
-    - Add global directory to PATH
-        - This isn't completely necessary, but if you plan to leverage `-Dpreview_dll` it's required
-- Modify `.\scripts\build.ps1` to install to Crystal's compiler directory (e.g. where stdlib lives)
-    - This has the benefit of not modifying any environment variables
-    - However, newer versions of Crystal might require a reinstall
+- Add LuaJIT directory to environment variable `CRYSTAL_LIBRARY_PATH`
+    - NOTE: make sure to still include Crystal's compiler directory as well (can be found by running `crystal env CRYSTAL_LIBRARY_PATH`)
+- Add LuaJIT directory to PATH
+    - This isn't completely necessary, but if you plan to leverage `-Dpreview_dll` it's required
 
 ## Usage
 

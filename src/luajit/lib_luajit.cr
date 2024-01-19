@@ -1,6 +1,6 @@
 module Luajit
   {% if flag?(:win32) %}
-    # NOTE: Looks up the following:
+    # Looks up the following:
     #   - lua51.lib
     #   - lua51-static.lib
     #   - lua51-dynamic.lib
