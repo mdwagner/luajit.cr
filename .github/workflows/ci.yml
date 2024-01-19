@@ -29,3 +29,6 @@ jobs:
         run: .\scripts\build.ps1
       - name: Run tests
         run: crystal spec
+        name: "Run tests w/ dynamic linking (experimental)"
+        continue-on-error: true
+        run: crystal spec -Dpreview_dll
