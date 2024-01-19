@@ -1,7 +1,13 @@
 module Luajit
   {% if flag?(:win32) %}
-    # NOTE: Looks up either "lua51.lib", "lua51-static.lib", or "lua51-dynamic.lib"
+    # NOTE: Looks up the following:
+    #   - lua51.lib
+    #   - lua51-static.lib
+    #   - lua51-dynamic.lib
     @[Link("lua51")]
+    {% if file_exists?("#{__DIR__}\\..\\..\\ext\\luajit\\lua51.lib") %}
+      @[Link(ldflags: "/LIBPATH:#{__DIR__}\\..\\..\\ext\\luajit")]
+    {% end %}
   {% else %}
     @[Link("luajit")]
   {% end %}
