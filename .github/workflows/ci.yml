@@ -31,4 +31,6 @@ jobs:
         run: crystal spec
       - name: "Run tests w/ dynamic linking (experimental)"
         continue-on-error: true
-        run: crystal spec -Dpreview_dll
+        run: |
+          $env:PATH += ";$(Get-Loction)\ext\luajit"
+          crystal spec -Dpreview_dll
