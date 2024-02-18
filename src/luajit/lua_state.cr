@@ -742,6 +742,38 @@ module Luajit
       raise LuaError.default_handler(self, status) unless status.ok?
     end
 
+    # Dumps a Lua function as a binary chunk at *index*
+    #
+    # Raises `LuaError` if operation fails
+    def dump_chunk(index : Int32 = -1) : IO::Memory
+      io = IO::Memory.new
+      proc = LibLuaJIT::Writer.new do |_L, _p, _sz, _ud|
+        _io = Box(typeof(io)).unbox(_ud)
+        slice = _p.as(Pointer(UInt8)).to_slice(_sz)
+        _io.write(slice)
+        0
+      end
+
+      push_value(index)
+      status = LibLuaJIT.lua_dump(self, proc, Box(typeof(io)).box(io))
+      pop(1)
+
+      unless status == 0
+        raise LuaError.new("Failed to dump lua function")
+      end
+
+      io.rewind
+    end
+
+    # Loads *io* as a Lua chunk
+    #
+    # *name* is the chunk name, used for debug information and error messages.
+    #
+    # See `#dump_chunk`
+    def load_chunk(io : IO::Memory, name : String) : LuaStatus
+      LuaStatus.new(LibLuaJIT.luaL_loadbuffer(self, io.buffer, io.size, name))
+    end
+
     # Pops a key from the stack, and pushes a key-value pair from the
     # table at *index* (the "next" pair after the given key).
     #

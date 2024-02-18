@@ -244,4 +244,22 @@ describe Luajit::LuaState do
       end
     end
   end
+
+  describe "#load_chunk" do
+    it "works" do
+      Luajit.run do |state|
+        state.execute! <<-'LUA'
+        return function()
+          return 500
+        end
+        LUA
+        SpecHelper.assert_stack_size!(state, 1)
+
+        io = state.dump_chunk
+        state.load_chunk(io, "").ok?.should be_true
+
+        SpecHelper.assert_stack_size!(state, 2)
+      end
+    end
+  end
 end
