@@ -6,6 +6,11 @@ require "./luajit/lua_any"
 require "./luajit/*"
 
 module Luajit
+  # :nodoc:
+  # Define Wrappers namespace
+  module Wrappers
+  end
+
   # Same as `LuaState.create`
   def self.new : LuaState
     LuaState.create

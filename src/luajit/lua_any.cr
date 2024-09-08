@@ -52,7 +52,7 @@ module Luajit
       @raw.pretty_print(pp)
     end
 
-    def ==(other : JSON::Any)
+    def ==(other : LuaAny)
       raw == other.raw
     end
 
@@ -61,5 +61,22 @@ module Luajit
     end
 
     def_hash raw
+
+    # Returns a new LuaAny instance with the `raw` value `dup`ed.
+    def dup
+      LuaAny.new(raw.dup)
+    end
+
+    # Returns a new LuaAny instance with the `raw` value `clone`ed.
+    # NOTE: If the `raw` value is a `LuaRef`, it will create a new one.
+    def clone(state : LuaState)
+      case value = raw
+      when LuaRef
+        state.get_ref_value(value)
+        LuaAny.new(state.create_ref)
+      else
+        LuaAny.new(raw.clone)
+      end
+    end
   end
 end

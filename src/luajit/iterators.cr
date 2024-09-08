@@ -20,22 +20,24 @@ module Luajit
       result : TablePair? = nil
 
       while @state.next(@index)
-        key = case @state.get_type(KEY)
-              when .string?
-                @state.to_string(KEY)
-              when .number?
-                @state.to_f(KEY)
-              else
-                @state.pop(1)
-                next
-              end
+        key =
+          case @state.get_type(KEY)
+          when .string?
+            @state.to_string(KEY)
+          when .number?
+            @state.to_f(KEY)
+          else
+            @state.pop(1)
+            next
+          end
 
-        value = if any_value = @state.to_any?(VALUE)
-                  any_value
-                else
-                  @state.pop(1)
-                  next
-                end
+        value =
+          if any_value = @state.to_any?(VALUE)
+            any_value
+          else
+            @state.pop(1)
+            next
+          end
 
         result = {key, value}
 
