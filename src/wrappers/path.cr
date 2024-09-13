@@ -1,19 +1,18 @@
-require "../../luajit"
+require "../luajit"
 
 class Luajit::Wrappers::Path < Luajit::LuaObject
-  global_name "__PATH__"
+  global_name "Path"
+  metatable_name "__PATH__"
 
   # ---@field new fun(path: string?): self
   def_class_method "new" do |state|
-    _self = (
-      if state.is_none?(1)
-        new(::Path.new)
-      elsif state.is_string?(1)
-        new(::Path.new(state.to_string(1)))
-      else
-        state.raise_type_error!(1, "expected string or nil")
-      end
-    )
+    if state.is_none?(1)
+      _self = new(::Path.new)
+    elsif state.is_string?(1)
+      _self = new(::Path.new(state.to_string(1)))
+    else
+      state.raise_type_error!(1, "expected string or nil")
+    end
     Luajit.setup_userdata(state, _self, self)
     1
   end
@@ -53,12 +52,16 @@ class Luajit::Wrappers::Path < Luajit::LuaObject
     1
   end
 
-  # ---@operator tostring(self): self
+  # ---@operator tostring(self): string
   def_instance_method "__tostring" do |state|
     state.assert_userdata!(1)
     _self = Luajit.userdata_value(state, self, 1)
     state.push _self.path.to_s
     1
+  end
+
+  def self.setup(state : Luajit::LuaState) : Nil
+    Luajit.create_lua_object(state, self)
   end
 
   property path : ::Path

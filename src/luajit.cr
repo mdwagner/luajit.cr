@@ -7,20 +7,20 @@ require "./luajit/*"
 
 module Luajit
   # :nodoc:
-  # Define Wrappers namespace
   module Wrappers
   end
 
   # Same as `LuaState.create`
-  def self.new : LuaState
-    LuaState.create
+  def self.new(defaults : Bool = false) : LuaState
+    LuaState.create.tap do |state|
+      state.open_library(:all) if defaults
+    end
   end
 
   # Same as `.new`, but also opens all Lua libraries
+  @[Deprecated("Use `.new(defaults: true)` instead")]
   def self.new_with_defaults : LuaState
-    new.tap do |state|
-      state.open_library(:all)
-    end
+    new(defaults: true)
   end
 
   # Same as `LuaState.destroy`
@@ -29,8 +29,8 @@ module Luajit
   end
 
   # Yields a new `LuaState` and closes it at end of block
-  def self.run(& : LuaState ->) : Nil
-    state = new_with_defaults
+  def self.run(defaults : Bool = true, & : LuaState ->) : Nil
+    state = new(defaults: defaults)
     begin
       yield state
     ensure
@@ -106,32 +106,5 @@ module Luajit
     {% end %}
     ud_ptr = state.get_userdata(index, type.metatable)
     Box(T).unbox(ud_ptr)
-  end
-
-  # Sets `NIL` as a global value with metatable name *mt_name*
-  #
-  # See `.is_global_nil?`
-  def self.setup_global_nil(state : LuaState, mt_name = "luajit_cr::__NIL__") : Nil
-    state.new_userdata(0_u64)
-    state.push({
-      "__tostring" => Luajit::LuaState::Function.new { |__state|
-        __state.push("NIL")
-        1
-      }
-    })
-    state.push_value(-1)
-    state.set_registry(mt_name)
-    state.set_metatable(-2)
-    state.set_global("NIL")
-  end
-
-  # Checks if value at *index* is the global `NIL` value with metatable name *mt_name*
-  def self.is_global_nil?(state : LuaState, index : Int32, mt_name = "luajit_cr::__NIL__") : Bool
-    begin
-      state.check_userdata!(index, mt_name)
-      true
-    rescue LuaError
-      false
-    end
   end
 end

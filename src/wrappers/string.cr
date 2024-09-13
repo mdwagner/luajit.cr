@@ -1,7 +1,8 @@
-require "../../luajit"
+require "../luajit"
 
 class Luajit::Wrappers::String < Luajit::LuaObject
-  global_name "__STRING__"
+  global_name "String"
+  metatable_name "__STRING__"
 
   # ---@field split fun(str: string, sep: string): string[]
   def_class_method "split" do |state|
@@ -15,8 +16,7 @@ class Luajit::Wrappers::String < Luajit::LuaObject
     1
   end
 
-  property str : ::String
-
-  def initialize(@str)
+  def self.setup(state : Luajit::LuaState) : Nil
+    Luajit.create_lua_object(state, self)
   end
 end
