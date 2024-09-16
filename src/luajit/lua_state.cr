@@ -1410,6 +1410,16 @@ module Luajit
       end
     end
 
+    # Cleans up *arr* refs for Lua GC
+    def clean(arr : Array(LuaAny)) : Nil
+      arr.each { |i| remove_ref(i) }
+    end
+
+    # Cleans up *hash* refs for Lua GC
+    def clean(hash : Hash(String | Float64, LuaAny)) : Nil
+      hash.each { |_, v| remove_ref(v) }
+    end
+
     private macro push_fn__eq
       push_fn do |%lua_state|
         %state = LuaState.new(%lua_state)
