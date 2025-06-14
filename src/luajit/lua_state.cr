@@ -1401,7 +1401,7 @@ module Luajit
       Array(LuaAny).new(total).tap do |arr|
         total.times do |n|
           i = n + 1
-          if value = hash[i]?
+          if value = hash[i.to_f]?
             arr << value
           else
             break

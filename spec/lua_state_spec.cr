@@ -171,6 +171,22 @@ describe Luajit::LuaState do
         SpecHelper.assert_stack_size!(state, 1)
       end
     end
+
+    it "ignores non-array keys" do
+      Luajit.run do |state|
+        state.execute! <<-'LUA'
+        b = {1, 2}
+        b[3.5] = 7
+        b["foo"] = 9
+        LUA
+        state.get_global("b")
+        arr = state.to_a(-1)
+
+        arr.map(&.as_f.to_i).should eq([1, 2])
+
+        SpecHelper.assert_stack_size!(state, 1)
+      end
+    end
   end
 
   describe "#push_fn_closure" do
