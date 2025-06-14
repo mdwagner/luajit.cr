@@ -262,4 +262,27 @@ describe Luajit::LuaState do
       end
     end
   end
+
+  describe "#push_thread" do
+    it "pushes the current thread" do
+      Luajit.run do |state|
+        state.push_thread.should eq(Luajit::LuaState::ThreadStatus::Main)
+        state.is_thread?(-1).should be_true
+
+        SpecHelper.assert_stack_size!(state, 1)
+      end
+    end
+
+    it "pushes a coroutine" do
+      Luajit.run do |state|
+        coroutine = state.new_thread
+        state.pop(1) # remove thread pushed by `new_thread`
+
+        coroutine.push_thread.should eq(Luajit::LuaState::ThreadStatus::Coroutine)
+        coroutine.is_thread?(-1).should be_true
+
+        SpecHelper.assert_stack_size!(coroutine, 1)
+      end
+    end
+  end
 end
