@@ -22,7 +22,7 @@
 ---@field parents fun(self): Path[]
 ---@field parts fun(self): string[]
 ---@field relative_to fun(self, base: Path|string): Path
----@field is_relative_to fun(self, base: Path|string): Path?
+---@field is_relative_to fun(self, base: Path|string): boolean
 ---@field root fun(self): Path?
 ---@field sibling fun(self, name: Path|string): Path
 ---@field stem fun(self): string
