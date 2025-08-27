@@ -19,7 +19,7 @@ module Luajit
 
     # :nodoc:
     #
-    # Sets the *state* pointer address inside it's own registry
+    # Sets the *state* pointer address inside its own registry
     #
     # Used with `#get_registry_address` for tracking whether a LuaState
     # instance or thread is part of a parent LuaState instance
