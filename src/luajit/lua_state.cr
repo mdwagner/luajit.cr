@@ -932,9 +932,12 @@ module Luajit
       LibLuaJIT.lua_pushcclosure(self, proc, 1)
     end
 
-    # Pushes thread represented by *x* onto the stack, returns `ThreadStatus`
-    def push_thread(x : LuaState) : ThreadStatus
-      if LibLuaJIT.lua_pushthread(x) == 1
+    # Pushes `self` onto its own stack and returns its thread status
+    #
+    # `ThreadStatus::Main` is returned when `self` represents the main
+    # thread, otherwise `ThreadStatus::Coroutine` is returned.
+    def push_thread : ThreadStatus
+      if LibLuaJIT.lua_pushthread(self) == 1
         ThreadStatus::Main
       else
         ThreadStatus::Coroutine
