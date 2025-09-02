@@ -9,7 +9,7 @@ documentation: "https://crystaldoc.info/github/mdwagner/luajit.cr/v0.4.0"
 authors:
   - Michael Wagner <mdwranger@gmail.com>
 
-crystal: ~> 1.8
+crystal: ~> 1.17
 
 libraries:
   libluajit-5.1: "~> 2.1"
